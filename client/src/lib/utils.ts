@@ -53,27 +53,27 @@ export const routeAccessRules: RouteAccess[] = [
   },
   {
     path: "/jobs",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("functionalleader"),
   },
   {
     path: "/editing",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("functionalleader"),
   },
   {
     path: "/job-final-review",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("functionalleader"),
   },
   {
     path: "/notifications",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("functionalleader"),
   },
   {
     path: "/compare-versions",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("functionalleader"),
   },
   {
     path: "/settings",
-    allow: (user) => user.group?.split(":").includes("security"),
+    allow: (user) => user.group?.split(":").includes("admin"),
   },
   {
     path: "/", // fallback home route

@@ -20,16 +20,16 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [roles, setRoles] = useState({
+    admin: true,
     hrleader: true,
-    manager: true,
-    security: true,
+    functionalleader: true,
   });
 
   // Active Directory authentication mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
         // const hashedPassword = SHA256(password).toString();
-      //aling roles like hrlelader:manager:security
+      // roles are joined like admin:hrleader:functionalleader
 
 
       //fix ts error
@@ -160,16 +160,16 @@ export default function Login() {
           <div className="space-y-4" >
             <label htmlFor="">Choose your role</label>
             <div className="flex gap-2 items-center" >
+              <Checkbox id="admin" name="admin" checked={roles.admin} onCheckedChange={(value: boolean) => setRoles({ ...roles, admin: value })} />
+              <label htmlFor="admin" className="text-sm" >Admin</label>
+            </div>
+            <div className="flex gap-2 items-center" >
               <Checkbox id="hrleader" name="hrleader" checked={roles.hrleader} onCheckedChange={(value: boolean) => setRoles({ ...roles, hrleader: value })} />
               <label htmlFor="hrleader" className="text-sm" >HR Leader</label>
             </div>
             <div className="flex gap-2 items-center" >
-              <Checkbox id="manager" name="manager" checked={roles.manager} onCheckedChange={(value: boolean) => setRoles({ ...roles, manager: value })} />
-              <label htmlFor="manager" className="text-sm" >Manager</label>  
-            </div>
-            <div className="flex gap-2 items-center" >
-              <Checkbox id="security" name="security" checked={roles.security} onCheckedChange={(value: boolean) => setRoles({ ...roles, security: value })} />
-              <label htmlFor="security" className="text-sm" >Security</label>  
+              <Checkbox id="functionalleader" name="functionalleader" checked={roles.functionalleader} onCheckedChange={(value: boolean) => setRoles({ ...roles, functionalleader: value })} />
+              <label htmlFor="functionalleader" className="text-sm" >Functional Leader</label>
             </div>
           </div>
           
