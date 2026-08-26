@@ -155,6 +155,8 @@ export function objectGUIDToUUID(guidString: string) {
 export function checkRole(allowedRole: string){
   return function(req: Request, res: Response, next: NextFunction){
     const userRoleArr: string[] = req.user.group.split(':')
+    // admin has access to everything
+    if(userRoleArr.includes('admin')) return next()
     const allowedRoleArr = allowedRole.split(':')
     const isAllowed = userRoleArr.some(c => allowedRoleArr.includes(c))
     if(!isAllowed) return res.status(403).json({message: `You don't have persmission!`})
