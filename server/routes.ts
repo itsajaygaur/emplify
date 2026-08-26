@@ -69,7 +69,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.use(
     "/api/notifications",
     authMiddleware,
-    checkRole("hrleader:manager"),
+    checkRole("hrleader:functionalleader"),
     notificationRoutes
   );
 
@@ -77,11 +77,11 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.use(
     "/api/users",
     authMiddleware,
-    checkRole("hrleader:manager"),
+    checkRole("hrleader:functionalleader"),
     usersRoutes
   );
 
-  app.post("/api/ed", authMiddleware, checkRole("security"), (req, res) => {
+  app.post("/api/ed", authMiddleware, checkRole("admin"), (req, res) => {
     try {
       const { value, method, key } = req.body;
       if (method === "encrypt") {
@@ -228,7 +228,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.post(
     "/api/search",
     authMiddleware,
-    checkRole("security"),
+    checkRole("admin"),
     async (req, res) => {
       try {
         const { searchId } = req.body;
@@ -334,7 +334,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.get(
     "/api/job/finalreview",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -392,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.get(
     "/api/jobs",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       const {
         search_term = null,
@@ -443,7 +443,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.get(
     "/api/export-jobs",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -527,7 +527,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.get(
     "/api/all-job-families",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -544,7 +544,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.get(
     "/api/notification-settings",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -570,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.put(
     "/api/notification-settings",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       const { emailNotifications, jobUpdates } = req.body;
       try {
@@ -591,7 +591,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.get(
     "/api/user-list",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -618,7 +618,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.get(
     "/api/job-description/:jobCode",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -717,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<any> {
   app.put(
     "/api/job-description",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req, res) => {
       try {
         const {
@@ -896,7 +896,7 @@ async function deleteMissingUserComments(
   app.post(
     "/api/job/hr-review",
     authMiddleware,
-    checkRole("manager"),
+    checkRole("functionalleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -942,7 +942,7 @@ async function deleteMissingUserComments(
   app.post(
     "/api/job/accept-changes",
     authMiddleware,
-    checkRole("manager"),
+    checkRole("functionalleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -1035,7 +1035,7 @@ async function deleteMissingUserComments(
   app.get(
     "/api/export-notifications",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req: Request, res: Response) => {
       try {
         const pool = await poolPromise;
@@ -1107,7 +1107,7 @@ async function deleteMissingUserComments(
   app.post(
     "/api/config",
     authMiddleware,
-    checkRole("security"),
+    checkRole("admin"),
     async (req, res) => {
       try {
         const configString = JSON.stringify(req.body.config);
@@ -1135,7 +1135,7 @@ async function deleteMissingUserComments(
   app.put(
     "/api/config/:id",
     authMiddleware,
-    checkRole("security"),
+    checkRole("admin"),
     async (req, res) => {
       try {
         const id = req.params.id as string;
@@ -1164,7 +1164,7 @@ async function deleteMissingUserComments(
   app.delete(
     "/api/config/:id",
     authMiddleware,
-    checkRole("security"),
+    checkRole("admin"),
     async (req, res) => {
       try {
         const id = req.params.id as string;
@@ -1188,7 +1188,7 @@ async function deleteMissingUserComments(
   app.get(
     "/api/config/:title",
     authMiddleware,
-    checkRole("security"),
+    checkRole("admin"),
     async (req, res) => {
       try {
         const title = req.params.title as string;
@@ -1219,7 +1219,7 @@ async function deleteMissingUserComments(
   app.put(
     "/api/config/activate/:id",
     authMiddleware,
-    checkRole("security"),
+    checkRole("admin"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -1260,7 +1260,7 @@ async function deleteMissingUserComments(
   app.get(
     "/api/all_notifications",
     authMiddleware,
-    checkRole("manager:hrleader"),
+    checkRole("functionalleader:hrleader"),
     async (req: Request, res: Response) => {
       try {
         const { search, role, status, sortBy, sortOrder } = req.query;
@@ -1298,7 +1298,7 @@ async function deleteMissingUserComments(
   app.get(
     "/api/export-jobs-completed",
     authMiddleware,
-    checkRole("hrleader:manager"),
+    checkRole("hrleader:functionalleader"),
     async (req, res) => {
       try {
         const pool = await poolPromise;
@@ -1565,17 +1565,19 @@ function searchLdapUser(searchId: string) {
 }
 
 type EnvGroups = {
-  GROUP_SECURITY: string;
-  GROUP_MANAGER: string;
+  GROUP_ADMIN: string;
   GROUP_HRLEADER: string;
+  GROUP_FUNCTIONALLEADER: string;
 };
 
 function getUserGroupRole(
   memberOf: string[],
   env: EnvGroups = {
-    GROUP_SECURITY: process.env.GROUP_SECURITY || "",
-    GROUP_MANAGER: process.env.GROUP_MANAGER || "",
+    // old env var names kept as fallback for existing deployments
+    GROUP_ADMIN: process.env.GROUP_ADMIN || process.env.GROUP_SECURITY || "",
     GROUP_HRLEADER: process.env.GROUP_HRLEADER || "",
+    GROUP_FUNCTIONALLEADER:
+      process.env.GROUP_FUNCTIONALLEADER || process.env.GROUP_MANAGER || "",
   }
 ): string | undefined {
   const extractCN = (dn: string) => {
@@ -1585,22 +1587,22 @@ function getUserGroupRole(
 
   const userGroups = new Set(memberOf.map(extractCN).filter(Boolean));
 
-  const securityGroups = env.GROUP_SECURITY.split(",").map((g) => g.trim());
-  const managerGroups = env.GROUP_MANAGER.split(",").map((g) => g.trim());
+  const adminGroups = env.GROUP_ADMIN.split(",").map((g) => g.trim());
   const hrLeaderGroups = env.GROUP_HRLEADER.split(",").map((g) => g.trim());
+  const functionalLeaderGroups = env.GROUP_FUNCTIONALLEADER.split(",").map((g) => g.trim());
 
   const roles: string[] = [];
 
-  if (securityGroups.some((group) => userGroups.has(group))) {
-    roles.push("security");
+  if (adminGroups.some((group) => userGroups.has(group))) {
+    roles.push("admin");
   }
 
   if (hrLeaderGroups.some((group) => userGroups.has(group))) {
     roles.push("hrleader");
   }
 
-  if (managerGroups.some((group) => userGroups.has(group))) {
-    roles.push("manager");
+  if (functionalLeaderGroups.some((group) => userGroups.has(group))) {
+    roles.push("functionalleader");
   }
 
   return roles.length ? roles.join(":") : undefined;

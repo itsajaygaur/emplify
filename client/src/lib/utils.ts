@@ -46,34 +46,40 @@ type RouteAccess = {
   allow: (user: any) => boolean;
 };
 
+const hasRole = (user: any, role: string) => user.group?.split(":").includes(role);
+
+// admin has access to everything
+const allowRoles = (...roles: string[]) => (user: any) =>
+  hasRole(user, "admin") || roles.some((role) => hasRole(user, role));
+
 export const routeAccessRules: RouteAccess[] = [
   {
     path: "/dashboard",
-    allow: (user) => user.group?.split(":").includes("hrleader"),
+    allow: allowRoles("hrleader"),
   },
   {
     path: "/jobs",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: allowRoles("hrleader", "functionalleader"),
   },
   {
     path: "/editing",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: allowRoles("hrleader", "functionalleader"),
   },
   {
     path: "/job-final-review",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: allowRoles("hrleader", "functionalleader"),
   },
   {
     path: "/notifications",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: allowRoles("hrleader", "functionalleader"),
   },
   {
     path: "/compare-versions",
-    allow: (user) => user.group?.split(":").includes("hrleader") || user.group?.split(":").includes("manager"),
+    allow: allowRoles("hrleader", "functionalleader"),
   },
   {
     path: "/settings",
-    allow: (user) => user.group?.split(":").includes("security"),
+    allow: allowRoles(),
   },
   {
     path: "/", // fallback home route
