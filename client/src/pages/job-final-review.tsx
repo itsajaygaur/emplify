@@ -51,6 +51,7 @@ import {
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { fetchWithCredentials } from "@/lib/utils";
+import { JD_LABELS } from "@shared/job-description-fields";
 
 export default function JobFinalReview() {
   const [, setLocation] = useLocation();
@@ -248,7 +249,7 @@ export default function JobFinalReview() {
               <div className="p-6">
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">Job Summary</h4>
+                    <h4 className="font-semibold">{JD_LABELS.positionSummary}</h4>
                   </div>
                   <div className="p-4">
                     <p className="text-sm">{jobDetails?.jobSummary ?? "No Job Summary available"}</p>
@@ -257,7 +258,7 @@ export default function JobFinalReview() {
 
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">Essential Functions</h4>
+                    <h4 className="font-semibold">{JD_LABELS.essentialFunctions}</h4>
                   </div>
                   <div className="space-y-3 pl-4">
                     {essentialFunctionData.map((func: string, index: number) => (

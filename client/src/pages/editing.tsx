@@ -63,6 +63,17 @@ import { toast } from "@/hooks/use-toast";
 import NotificationBell from "./notification-bell";
 import { fetchWithCredentials, getLoggedInUser } from "@/lib/utils";
 import FullScreenLoader from "@/components/full-screen-loader";
+import { JdReadOnlySection } from "@/components/jd-read-only-section";
+import {
+  JdEditableSection,
+  type JdSectionItem,
+} from "@/components/jd-editable-section";
+import {
+  JD_LABELS,
+  JD_SECTIONS,
+  type JobDescriptionSectionChanges,
+  type JobDescriptionSections,
+} from "@shared/job-description-fields";
 
 type User = { id: number; name: string };
 
@@ -221,6 +232,59 @@ export default function Editing() {
     enabled: !!jobCode,
   });
 
+  // The JD elements as they appear in the original job description, parsed
+  // server-side from the `other_job_description` blob.
+  const originalSections = (data?.jobDescriptionSections ??
+    {}) as Partial<JobDescriptionSections>;
+
+  // Reviewer edits to the editable elements, keyed by element. Items carry a
+  // local id so the list can be reordered and edited without index churn.
+  const [sectionEdits, setSectionEdits] = useState<
+    Record<string, JdSectionItem[]>
+  >({});
+
+  const toSectionItems = (texts?: string[]): JdSectionItem[] =>
+    (texts ?? []).map((text, index) => ({ id: index + 1, text }));
+
+  const updateSectionEdits = (key: string, items: JdSectionItem[]) =>
+    setSectionEdits((prev) => ({ ...prev, [key]: items }));
+
+
+  // Elements reviewers cannot edit directly route change requests through the
+  // comment box, pre-tagged so HR can see which element a note refers to.
+  const commentsSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleAddSectionComment = (label: string) => {
+    if (commentEditable) return;
+    const id = Date.now();
+    setComments((prev) => [
+      {
+        id,
+        comment: "",
+        category: "",
+        author: "",
+        createdAt: "",
+        isEditable: true,
+        isCritical: false,
+      },
+      ...prev,
+    ]);
+    setCommentEditable(id);
+    setCommentCategory("");
+    setAdditionalTextComment(`${label}: `);
+    commentsSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const sectionChangesPayload = () =>
+    Object.fromEntries(
+      Object.entries(sectionEdits).map(([key, items]) => [
+        key,
+        items.map((item) => item.text.trim()).filter(Boolean),
+      ])
+    );
 
   async function updateJobDescription(updateStatus: boolean = false){  
      const res =  await fetchWithCredentials(`/api/job-description`, {
@@ -232,6 +296,7 @@ export default function Editing() {
             ...ef,
             sortOrder: i + 1,
           })),
+          jdSectionChanges: sectionChangesPayload(),
           // responsibles: responsibleUsers.map((u) => u.id),
           reviewers: reviewers.map((u) => u.id),
           // isCritical: isCritical,
@@ -982,6 +1047,22 @@ const acceptChangesMutation = useMutation({
     setResponsibleUsers(data?.responsibles || []);
     setReviewers(data?.reviewers || []);
     setJobSummary(data?.jobSummaryChanges || "");
+    // Fall back to the original values until this element has been saved: an
+    // element present in the changes has been edited, even if it is empty.
+    const savedSections = (data?.jobDescriptionSectionChanges ??
+      {}) as JobDescriptionSectionChanges;
+    const sections = (data?.jobDescriptionSections ??
+      {}) as Partial<JobDescriptionSections>;
+    setSectionEdits(
+      Object.fromEntries(
+        JD_SECTIONS.filter((section) => section.editability === "editable").map(
+          (section) => [
+            section.key,
+            toSectionItems(savedSections[section.key] ?? sections[section.key]),
+          ]
+        )
+      )
+    );
     // setIsCritical(data?.isCritical || false);
     // setAdditionalText(data?.otherJobDescription || "");
     setAdditionalTextComment(data?.comments || "")
@@ -1323,7 +1404,9 @@ const acceptChangesMutation = useMutation({
               </div>
               <div className="p-6">
                 <div className="mb-6">
-                  <h4 className="font-semibold mb-3">Job Summary</h4>
+                  <h4 className="font-semibold mb-3">
+                    {JD_LABELS.positionSummary}
+                  </h4>
                   {/* <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
                     </div> */}
                   <p className="text-sm">{data?.jobSummaryOriginal}</p>
@@ -1338,7 +1421,9 @@ const acceptChangesMutation = useMutation({
                 </div>
 
                 <div className="mb-6">
-                  <h4 className="font-semibold mb-3">Essential Functions</h4>
+                  <h4 className="font-semibold mb-3">
+                    {JD_LABELS.essentialFunctions}
+                  </h4>
                   <ol className="space-y-2 text-sm">
                     {data?.essentialFunctionsOriginal?.map(
                       (func: { functionText: string }, index: number) => (
@@ -1349,10 +1434,13 @@ const acceptChangesMutation = useMutation({
                     )}
                   </ol>
                 </div>
-                <div >
-                 <h4 className="font-semibold mb-3">Other Job Description</h4>
-                  <pre className="text-sm whitespace-pre-wrap break-words" style={{fontFamily: "Inter, sans-serif"}} >{data?.otherJobDescription}</pre>
-                </div>
+                {JD_SECTIONS.map((section) => (
+                  <JdReadOnlySection
+                    key={section.key}
+                    label={section.label}
+                    items={originalSections[section.key]}
+                  />
+                ))}
 
                 {/* <div className="text-sm text-gray-600 leading-relaxed">
                   <p>
@@ -1387,7 +1475,9 @@ const acceptChangesMutation = useMutation({
               <div className="p-6">
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">Job Summary</h4>
+                    <h4 className="font-semibold">
+                      {JD_LABELS.positionSummary}
+                    </h4>
                     <div className="flex items-center space-x-2">
                       {/* <div className="flex items-center space-x-2">
                         <input
@@ -1498,7 +1588,9 @@ const acceptChangesMutation = useMutation({
 
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">Essential Functions</h4>
+                    <h4 className="font-semibold">
+                      {JD_LABELS.essentialFunctions}
+                    </h4>
                     <div className="flex space-x-2">
                       <Button
                         size="sm"
@@ -1640,8 +1732,45 @@ const acceptChangesMutation = useMutation({
                   </div>
                 </div>
 
+                {JD_SECTIONS.map((section) =>
+                  section.editability === "editable" ? (
+                    <JdEditableSection
+                      key={section.key}
+                      label={section.label}
+                      items={sectionEdits[section.key] ?? []}
+                      onChange={(items) =>
+                        updateSectionEdits(section.key, items)
+                      }
+                      onReset={() =>
+                        updateSectionEdits(
+                          section.key,
+                          toSectionItems(originalSections[section.key])
+                        )
+                      }
+                      canReset={
+                        JSON.stringify(
+                          (sectionEdits[section.key] ?? []).map((i) => i.text)
+                        ) !== JSON.stringify(originalSections[section.key] ?? [])
+                      }
+                      disabled={isCompleted}
+                    />
+                  ) : (
+                    <JdReadOnlySection
+                      key={section.key}
+                      label={section.label}
+                      items={originalSections[section.key]}
+                      onAddComment={
+                        section.editability === "comment"
+                          ? () => handleAddSectionComment(section.label)
+                          : undefined
+                      }
+                      disabled={isCompleted}
+                    />
+                  )
+                )}
+
                 {/* Comments Section */}
-                <div className="mb-6">
+                <div className="mb-6" ref={commentsSectionRef}>
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold">
                       Comments
@@ -2239,7 +2368,7 @@ const acceptChangesMutation = useMutation({
                   {/* Job Summary */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Job Summary
+                      {JD_LABELS.positionSummary}
                     </h4>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-700">
@@ -2251,7 +2380,7 @@ const acceptChangesMutation = useMutation({
                   {/* Essential Functions */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Essential Functions
+                      {JD_LABELS.essentialFunctions}
                     </h4>
                     <div className="space-y-3">
                       {originalEssentialFunctions.map((func, index) => (
@@ -2302,7 +2431,7 @@ const acceptChangesMutation = useMutation({
                   {/* Job Summary */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Job Summary
+                      {JD_LABELS.positionSummary}
                     </h4>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-700">{jobSummary}</p>
@@ -2312,7 +2441,7 @@ const acceptChangesMutation = useMutation({
                   {/* Essential Functions */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Essential Functions
+                      {JD_LABELS.essentialFunctions}
                     </h4>
                     <div className="space-y-3">
                       {essentialFunctions.map((func, index) => (
