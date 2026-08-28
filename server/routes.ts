@@ -13,6 +13,7 @@ import dashboardRoutes from "./dashboard.routes";
 import notificationRoutes from "./notification.routes";
 import usersRoutes from "./users.routes";
 import { JobFinalReview } from "@shared/jobs.schema";
+import { parseJobDescriptionSections } from "@shared/job-description-fields";
 import XLSX from "xlsx";
 // import sspi from "node-sspi";
 import authMiddleware, { tokenBlacklist } from "./auth.middleware";
@@ -706,6 +707,11 @@ export async function registerRoutes(app: Express): Promise<any> {
           job?.essential_functions_changes || "[]"
         );
         job.comments = JSON.parse(job?.comments || "[]").map((c:any) => ({...c, isEditable: (c.author === req.user?.name || !c.author) }));
+        // Split the free-text `other_job_description` blob into the named
+        // Emplify JD elements the editing page renders.
+        job.job_description_sections = parseJobDescriptionSections(
+          job?.other_job_description
+        );
         res.json(convertKeysToCamelCase(job));
       } catch (error) {
         log("Error fetching job description:", error);

@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn, fetchWithCredentials } from "@/lib/utils";
 import FullScreenLoader from "@/components/full-screen-loader";
+import { JD_LABELS } from "@shared/job-description-fields";
 
 interface DiffSegment {
   type: "unchanged" | "added" | "removed" | "modified";
@@ -463,7 +464,7 @@ export default function CompareVersions() {
             >
               <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200">
                 <div className="p-6">
-                  <h4 className="font-semibold mb-3">Job Summary</h4>
+                  <h4 className="font-semibold mb-3">{JD_LABELS.positionSummary}</h4>
                   {isEditMode ? (
                     <Textarea
                       value={originalJobSummary}
@@ -483,7 +484,7 @@ export default function CompareVersions() {
               {showAiBox && (
                 <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200">
                   <div className="p-6">
-                    <h4 className="font-semibold mb-3">Job Summary AI</h4>
+                    <h4 className="font-semibold mb-3">{JD_LABELS.positionSummary} AI</h4>
                     {isEditMode ? (
                       <Textarea
                         value={originalJobSummary}
@@ -502,7 +503,7 @@ export default function CompareVersions() {
 
               <div className="bg-white rounded-lg shadow-sm border-2 border-green-200">
                 <div className="p-6">
-                  <h4 className="font-semibold mb-3">Job Summary</h4>
+                  <h4 className="font-semibold mb-3">{JD_LABELS.positionSummary}</h4>
                   {isEditMode ? (
                     <Textarea
                       value={currentJobSummary}
@@ -528,7 +529,7 @@ export default function CompareVersions() {
             >
               <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200">
                 <div className="p-6">
-                  <h4 className="font-semibold mb-3">Essential Functions:</h4>
+                  <h4 className="font-semibold mb-3">{JD_LABELS.essentialFunctions}:</h4>
                   {isEditMode ? (
                     <Textarea
                       value={originalEssentialFunctions}
@@ -557,7 +558,7 @@ export default function CompareVersions() {
                 <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200">
                   <div className="p-6">
                     <h4 className="font-semibold mb-3">
-                      Essential Functions AI:
+                      {JD_LABELS.essentialFunctions} AI:
                     </h4>
                     {isEditMode ? (
                       <Textarea
@@ -579,7 +580,7 @@ export default function CompareVersions() {
 
               <div className="bg-white rounded-lg shadow-sm border-2 border-green-200">
                 <div className="p-6">
-                  <h4 className="font-semibold mb-3">Essential Functions:</h4>
+                  <h4 className="font-semibold mb-3">{JD_LABELS.essentialFunctions}:</h4>
                   {isEditMode ? (
                     <Textarea
                       value={currentEssentialFunctions}

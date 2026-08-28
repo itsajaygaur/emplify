@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -63,6 +63,12 @@ import { toast } from "@/hooks/use-toast";
 import NotificationBell from "./notification-bell";
 import { fetchWithCredentials, getLoggedInUser } from "@/lib/utils";
 import FullScreenLoader from "@/components/full-screen-loader";
+import { JdReadOnlySection } from "@/components/jd-read-only-section";
+import {
+  JD_LABELS,
+  JD_READONLY_SECTIONS,
+  type JobDescriptionSections,
+} from "@shared/job-description-fields";
 
 type User = { id: number; name: string };
 
@@ -220,6 +226,28 @@ export default function Editing() {
     queryKey: ["job-description", jobCode],
     enabled: !!jobCode,
   });
+
+  // Read-only JD elements, parsed server-side from `other_job_description`.
+  // Identical on both panels: these elements are displayed, never edited.
+  const readOnlySections = useMemo(() => {
+    const sections = data?.jobDescriptionSections as
+      | JobDescriptionSections
+      | undefined;
+    return JD_READONLY_SECTIONS.map((section) => ({
+      key: section.key,
+      label: section.label,
+      items: sections?.[section.key],
+    }));
+  }, [data?.jobDescriptionSections]);
+
+  const renderReadOnlySections = () =>
+    readOnlySections.map((section) => (
+      <JdReadOnlySection
+        key={section.key}
+        label={section.label}
+        items={section.items}
+      />
+    ));
 
 
   async function updateJobDescription(updateStatus: boolean = false){  
@@ -1323,7 +1351,9 @@ const acceptChangesMutation = useMutation({
               </div>
               <div className="p-6">
                 <div className="mb-6">
-                  <h4 className="font-semibold mb-3">Job Summary</h4>
+                  <h4 className="font-semibold mb-3">
+                    {JD_LABELS.positionSummary}
+                  </h4>
                   {/* <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
                     </div> */}
                   <p className="text-sm">{data?.jobSummaryOriginal}</p>
@@ -1338,7 +1368,9 @@ const acceptChangesMutation = useMutation({
                 </div>
 
                 <div className="mb-6">
-                  <h4 className="font-semibold mb-3">Essential Functions</h4>
+                  <h4 className="font-semibold mb-3">
+                    {JD_LABELS.essentialFunctions}
+                  </h4>
                   <ol className="space-y-2 text-sm">
                     {data?.essentialFunctionsOriginal?.map(
                       (func: { functionText: string }, index: number) => (
@@ -1349,10 +1381,7 @@ const acceptChangesMutation = useMutation({
                     )}
                   </ol>
                 </div>
-                <div >
-                 <h4 className="font-semibold mb-3">Other Job Description</h4>
-                  <pre className="text-sm whitespace-pre-wrap break-words" style={{fontFamily: "Inter, sans-serif"}} >{data?.otherJobDescription}</pre>
-                </div>
+                {renderReadOnlySections()}
 
                 {/* <div className="text-sm text-gray-600 leading-relaxed">
                   <p>
@@ -1387,7 +1416,9 @@ const acceptChangesMutation = useMutation({
               <div className="p-6">
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">Job Summary</h4>
+                    <h4 className="font-semibold">
+                      {JD_LABELS.positionSummary}
+                    </h4>
                     <div className="flex items-center space-x-2">
                       {/* <div className="flex items-center space-x-2">
                         <input
@@ -1498,7 +1529,9 @@ const acceptChangesMutation = useMutation({
 
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">Essential Functions</h4>
+                    <h4 className="font-semibold">
+                      {JD_LABELS.essentialFunctions}
+                    </h4>
                     <div className="flex space-x-2">
                       <Button
                         size="sm"
@@ -1639,6 +1672,8 @@ const acceptChangesMutation = useMutation({
                     </Button>
                   </div>
                 </div>
+
+                {renderReadOnlySections()}
 
                 {/* Comments Section */}
                 <div className="mb-6">
@@ -2239,7 +2274,7 @@ const acceptChangesMutation = useMutation({
                   {/* Job Summary */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Job Summary
+                      {JD_LABELS.positionSummary}
                     </h4>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-700">
@@ -2251,7 +2286,7 @@ const acceptChangesMutation = useMutation({
                   {/* Essential Functions */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Essential Functions
+                      {JD_LABELS.essentialFunctions}
                     </h4>
                     <div className="space-y-3">
                       {originalEssentialFunctions.map((func, index) => (
@@ -2302,7 +2337,7 @@ const acceptChangesMutation = useMutation({
                   {/* Job Summary */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Job Summary
+                      {JD_LABELS.positionSummary}
                     </h4>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-700">{jobSummary}</p>
@@ -2312,7 +2347,7 @@ const acceptChangesMutation = useMutation({
                   {/* Essential Functions */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Essential Functions
+                      {JD_LABELS.essentialFunctions}
                     </h4>
                     <div className="space-y-3">
                       {essentialFunctions.map((func, index) => (
