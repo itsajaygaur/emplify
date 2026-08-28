@@ -13,7 +13,10 @@ import dashboardRoutes from "./dashboard.routes";
 import notificationRoutes from "./notification.routes";
 import usersRoutes from "./users.routes";
 import { JobFinalReview } from "@shared/jobs.schema";
-import { parseJobDescriptionSections } from "@shared/job-description-fields";
+import {
+  isEditableSectionKey,
+  parseJobDescriptionSections,
+} from "@shared/job-description-fields";
 import XLSX from "xlsx";
 // import sspi from "node-sspi";
 import authMiddleware, { tokenBlacklist } from "./auth.middleware";
@@ -684,7 +687,16 @@ export async function registerRoutes(app: Express): Promise<any> {
             FROM essential_functions_changes oef WITH (NOLOCK)
             WHERE oef.job_id = jobs.id
             FOR JSON PATH
-          ) AS essential_functions_changes
+          ) AS essential_functions_changes,
+
+          -- Reviewer edits to the editable JD elements
+          (
+            SELECT jsc.section_key, jsc.item_text, jsc.sort_order
+            FROM jd_section_changes jsc WITH (NOLOCK)
+            WHERE jsc.job_id = jobs.id
+            ORDER BY jsc.section_key, jsc.sort_order
+            FOR JSON PATH
+          ) AS jd_section_changes
         FROM jobs WITH (NOLOCK)
         LEFT JOIN job_descriptions WITH (NOLOCK) ON jobs.id = job_descriptions.job_id 
         LEFT JOIN job_families WITH (NOLOCK) ON jobs.job_family_id = job_families.id
@@ -712,6 +724,23 @@ export async function registerRoutes(app: Express): Promise<any> {
         job.job_description_sections = parseJobDescriptionSections(
           job?.other_job_description
         );
+        // Reviewer edits to the editable elements, grouped by element. A key
+        // is present once that element has been saved, even when it was saved
+        // empty, so deleted items do not reappear on the next load.
+        const sectionChangeRows: Array<{
+          section_key: string;
+          item_text: string;
+          sort_order: number;
+        }> = JSON.parse(job?.jd_section_changes || "[]");
+        const sectionChanges: Record<string, string[]> = {};
+        for (const row of sectionChangeRows) {
+          if (!isEditableSectionKey(row.section_key)) continue;
+          const items = (sectionChanges[row.section_key] ??= []);
+          // sort_order < 0 marks a deliberately emptied element.
+          if (row.sort_order >= 0) items.push(row.item_text);
+        }
+        job.job_description_section_changes = sectionChanges;
+        delete job.jd_section_changes;
         res.json(convertKeysToCamelCase(job));
       } catch (error) {
         log("Error fetching job description:", error);
@@ -731,6 +760,7 @@ export async function registerRoutes(app: Express): Promise<any> {
           reviewers = [],
           jobId,
           essentialFunctionsChanges = [],
+          jdSectionChanges = null,
           jobSummaryChanges = "",
           // isCritical,
           comments,
@@ -805,6 +835,7 @@ export async function registerRoutes(app: Express): Promise<any> {
             essentialFunctionsChanges,
             transaction
           );
+          await updateJdSectionChanges(jobId, jdSectionChanges, transaction);
           await replaceResponsiblesAndReviewers(
             jobId,
             // responsibles,
@@ -1436,6 +1467,59 @@ async function updateEssentialFunctions(
           INSERT INTO essential_functions_changes (job_id, function_text, sort_order)
           VALUES (@jobId, @functionText, @sortOrder)
         `);
+  }
+}
+
+/**
+ * Replaces the reviewer edits for the editable JD elements. Elements absent
+ * from the payload are left untouched, so a caller that does not know about
+ * these elements cannot wipe them. An element saved with no items keeps a
+ * single sort_order = -1 marker row, which is how "emptied" stays
+ * distinguishable from "never edited".
+ */
+async function updateJdSectionChanges(
+  jobId: number,
+  sectionChanges: Record<string, string[]> | null,
+  transaction: sql.Transaction
+) {
+  if (!sectionChanges) return;
+
+  for (const [sectionKey, items] of Object.entries(sectionChanges)) {
+    if (!isEditableSectionKey(sectionKey)) continue;
+
+    await new sql.Request(transaction)
+      .input("jobId", sql.Int, jobId)
+      .input("sectionKey", sql.NVarChar(64), sectionKey)
+      .query(
+        `DELETE FROM jd_section_changes WHERE job_id = @jobId AND section_key = @sectionKey`
+      );
+
+    const texts = (Array.isArray(items) ? items : [])
+      .map((text) => String(text ?? "").trim())
+      .filter(Boolean);
+
+    if (!texts.length) {
+      await new sql.Request(transaction)
+        .input("jobId", sql.Int, jobId)
+        .input("sectionKey", sql.NVarChar(64), sectionKey)
+        .query(
+          `INSERT INTO jd_section_changes (job_id, section_key, item_text, sort_order)
+           VALUES (@jobId, @sectionKey, '', -1)`
+        );
+      continue;
+    }
+
+    for (let index = 0; index < texts.length; index++) {
+      await new sql.Request(transaction)
+        .input("jobId", sql.Int, jobId)
+        .input("sectionKey", sql.NVarChar(64), sectionKey)
+        .input("itemText", sql.NVarChar(sql.MAX), texts[index])
+        .input("sortOrder", sql.Int, index)
+        .query(
+          `INSERT INTO jd_section_changes (job_id, section_key, item_text, sort_order)
+           VALUES (@jobId, @sectionKey, @itemText, @sortOrder)`
+        );
+    }
   }
 }
 

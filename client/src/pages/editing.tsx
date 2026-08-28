@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -65,8 +65,13 @@ import { fetchWithCredentials, getLoggedInUser } from "@/lib/utils";
 import FullScreenLoader from "@/components/full-screen-loader";
 import { JdReadOnlySection } from "@/components/jd-read-only-section";
 import {
+  JdEditableSection,
+  type JdSectionItem,
+} from "@/components/jd-editable-section";
+import {
   JD_LABELS,
-  JD_READONLY_SECTIONS,
+  JD_SECTIONS,
+  type JobDescriptionSectionChanges,
   type JobDescriptionSections,
 } from "@shared/job-description-fields";
 
@@ -227,28 +232,59 @@ export default function Editing() {
     enabled: !!jobCode,
   });
 
-  // Read-only JD elements, parsed server-side from `other_job_description`.
-  // Identical on both panels: these elements are displayed, never edited.
-  const readOnlySections = useMemo(() => {
-    const sections = data?.jobDescriptionSections as
-      | JobDescriptionSections
-      | undefined;
-    return JD_READONLY_SECTIONS.map((section) => ({
-      key: section.key,
-      label: section.label,
-      items: sections?.[section.key],
-    }));
-  }, [data?.jobDescriptionSections]);
+  // The JD elements as they appear in the original job description, parsed
+  // server-side from the `other_job_description` blob.
+  const originalSections = (data?.jobDescriptionSections ??
+    {}) as Partial<JobDescriptionSections>;
 
-  const renderReadOnlySections = () =>
-    readOnlySections.map((section) => (
-      <JdReadOnlySection
-        key={section.key}
-        label={section.label}
-        items={section.items}
-      />
-    ));
+  // Reviewer edits to the editable elements, keyed by element. Items carry a
+  // local id so the list can be reordered and edited without index churn.
+  const [sectionEdits, setSectionEdits] = useState<
+    Record<string, JdSectionItem[]>
+  >({});
 
+  const toSectionItems = (texts?: string[]): JdSectionItem[] =>
+    (texts ?? []).map((text, index) => ({ id: index + 1, text }));
+
+  const updateSectionEdits = (key: string, items: JdSectionItem[]) =>
+    setSectionEdits((prev) => ({ ...prev, [key]: items }));
+
+
+  // Elements reviewers cannot edit directly route change requests through the
+  // comment box, pre-tagged so HR can see which element a note refers to.
+  const commentsSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleAddSectionComment = (label: string) => {
+    if (commentEditable) return;
+    const id = Date.now();
+    setComments((prev) => [
+      {
+        id,
+        comment: "",
+        category: "",
+        author: "",
+        createdAt: "",
+        isEditable: true,
+        isCritical: false,
+      },
+      ...prev,
+    ]);
+    setCommentEditable(id);
+    setCommentCategory("");
+    setAdditionalTextComment(`${label}: `);
+    commentsSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const sectionChangesPayload = () =>
+    Object.fromEntries(
+      Object.entries(sectionEdits).map(([key, items]) => [
+        key,
+        items.map((item) => item.text.trim()).filter(Boolean),
+      ])
+    );
 
   async function updateJobDescription(updateStatus: boolean = false){  
      const res =  await fetchWithCredentials(`/api/job-description`, {
@@ -260,6 +296,7 @@ export default function Editing() {
             ...ef,
             sortOrder: i + 1,
           })),
+          jdSectionChanges: sectionChangesPayload(),
           // responsibles: responsibleUsers.map((u) => u.id),
           reviewers: reviewers.map((u) => u.id),
           // isCritical: isCritical,
@@ -1010,6 +1047,22 @@ const acceptChangesMutation = useMutation({
     setResponsibleUsers(data?.responsibles || []);
     setReviewers(data?.reviewers || []);
     setJobSummary(data?.jobSummaryChanges || "");
+    // Fall back to the original values until this element has been saved: an
+    // element present in the changes has been edited, even if it is empty.
+    const savedSections = (data?.jobDescriptionSectionChanges ??
+      {}) as JobDescriptionSectionChanges;
+    const sections = (data?.jobDescriptionSections ??
+      {}) as Partial<JobDescriptionSections>;
+    setSectionEdits(
+      Object.fromEntries(
+        JD_SECTIONS.filter((section) => section.editability === "editable").map(
+          (section) => [
+            section.key,
+            toSectionItems(savedSections[section.key] ?? sections[section.key]),
+          ]
+        )
+      )
+    );
     // setIsCritical(data?.isCritical || false);
     // setAdditionalText(data?.otherJobDescription || "");
     setAdditionalTextComment(data?.comments || "")
@@ -1381,7 +1434,13 @@ const acceptChangesMutation = useMutation({
                     )}
                   </ol>
                 </div>
-                {renderReadOnlySections()}
+                {JD_SECTIONS.map((section) => (
+                  <JdReadOnlySection
+                    key={section.key}
+                    label={section.label}
+                    items={originalSections[section.key]}
+                  />
+                ))}
 
                 {/* <div className="text-sm text-gray-600 leading-relaxed">
                   <p>
@@ -1673,10 +1732,45 @@ const acceptChangesMutation = useMutation({
                   </div>
                 </div>
 
-                {renderReadOnlySections()}
+                {JD_SECTIONS.map((section) =>
+                  section.editability === "editable" ? (
+                    <JdEditableSection
+                      key={section.key}
+                      label={section.label}
+                      items={sectionEdits[section.key] ?? []}
+                      onChange={(items) =>
+                        updateSectionEdits(section.key, items)
+                      }
+                      onReset={() =>
+                        updateSectionEdits(
+                          section.key,
+                          toSectionItems(originalSections[section.key])
+                        )
+                      }
+                      canReset={
+                        JSON.stringify(
+                          (sectionEdits[section.key] ?? []).map((i) => i.text)
+                        ) !== JSON.stringify(originalSections[section.key] ?? [])
+                      }
+                      disabled={isCompleted}
+                    />
+                  ) : (
+                    <JdReadOnlySection
+                      key={section.key}
+                      label={section.label}
+                      items={originalSections[section.key]}
+                      onAddComment={
+                        section.editability === "comment"
+                          ? () => handleAddSectionComment(section.label)
+                          : undefined
+                      }
+                      disabled={isCompleted}
+                    />
+                  )
+                )}
 
                 {/* Comments Section */}
-                <div className="mb-6">
+                <div className="mb-6" ref={commentsSectionRef}>
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold">
                       Comments

@@ -25,29 +25,81 @@ export const JD_LABELS = {
   essentialFunctions: "Essential Job Duties_Major Responsibilities",
 } as const;
 
-/** The read-only elements, in the order they must be displayed. */
-export const JD_READONLY_SECTIONS: ReadonlyArray<{
+/**
+ * What a Functional Leader may do with an element on the Updated panel:
+ * - "editable": edit the list directly.
+ * - "comment":  read-only, but changes can be requested via the comment box.
+ * - "readonly": read-only, no change route.
+ */
+export type JdSectionEditability = "editable" | "comment" | "readonly";
+
+/** The elements below the essential job duties, in display order. */
+export const JD_SECTIONS: ReadonlyArray<{
   key: keyof JobDescriptionSections;
   label: string;
+  editability: JdSectionEditability;
 }> = [
-  { key: "educationRequired", label: "Education REQUIRED" },
-  { key: "educationDesired", label: "Education DESIRED" },
-  { key: "experienceRequired", label: "Experience REQUIRED" },
-  { key: "experienceDesired", label: "Experience DESIRED" },
+  {
+    key: "educationRequired",
+    label: "Education REQUIRED",
+    editability: "comment",
+  },
+  {
+    key: "educationDesired",
+    label: "Education DESIRED",
+    editability: "editable",
+  },
+  {
+    key: "experienceRequired",
+    label: "Experience REQUIRED",
+    editability: "comment",
+  },
+  {
+    key: "experienceDesired",
+    label: "Experience DESIRED",
+    editability: "editable",
+  },
   {
     key: "certificationRequired",
     label: "Certification Registration_Licensure REQUIRED",
+    editability: "comment",
   },
   {
     key: "certificationDesired",
     label: "Certification Registration_Licensure DESIRED",
+    editability: "editable",
   },
-  { key: "environmentalConditions", label: "Environmental Conditions" },
+  {
+    key: "environmentalConditions",
+    label: "Environmental Conditions",
+    editability: "readonly",
+  },
   {
     key: "physicalRequirements",
     label: "Physical Requirements/Demands of the Position",
+    editability: "readonly",
   },
 ];
+
+/** Elements a Functional Leader can edit, so their edits are persisted. */
+export const JD_EDITABLE_SECTION_KEYS = JD_SECTIONS.filter(
+  (section) => section.editability === "editable"
+).map((section) => section.key);
+
+/**
+ * Reviewer edits to the editable elements. A key is present only once that
+ * element has been saved at least once; an absent key means "never edited",
+ * so the value parsed from the original blob still stands.
+ */
+export type JobDescriptionSectionChanges = Partial<
+  Record<keyof JobDescriptionSections, string[]>
+>;
+
+export function isEditableSectionKey(
+  key: string
+): key is keyof JobDescriptionSections {
+  return (JD_EDITABLE_SECTION_KEYS as string[]).includes(key);
+}
 
 export function emptyJobDescriptionSections(): JobDescriptionSections {
   return {
