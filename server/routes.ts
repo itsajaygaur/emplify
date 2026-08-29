@@ -642,6 +642,7 @@ export async function registerRoutes(app: Express): Promise<any> {
           job_descriptions.job_summary_ai,
           job_descriptions.job_summary_changes,
           job_descriptions.other_job_description,
+          job_descriptions.other_job_description_ai,
           job_descriptions.is_active,
 --          job_descriptions.is_critical,
           job_descriptions.last_edited_by,
@@ -719,10 +720,16 @@ export async function registerRoutes(app: Express): Promise<any> {
           job?.essential_functions_changes || "[]"
         );
         job.comments = JSON.parse(job?.comments || "[]").map((c:any) => ({...c, isEditable: (c.author === req.user?.name || !c.author) }));
-        // Split the free-text `other_job_description` blob into the named
-        // Emplify JD elements the editing page renders.
+        // Split the free-text `other_job_description` blobs into the named
+        // Emplify JD elements the editing page renders. The plain blob holds
+        // the legacy job description, `_ai` the updated one; the editing page
+        // shows one on each panel and falls back to the original when a job
+        // has no updated blob.
         job.job_description_sections = parseJobDescriptionSections(
           job?.other_job_description
+        );
+        job.job_description_sections_ai = parseJobDescriptionSections(
+          job?.other_job_description_ai || job?.other_job_description
         );
         // Reviewer edits to the editable elements, grouped by element. A key
         // is present once that element has been saved, even when it was saved

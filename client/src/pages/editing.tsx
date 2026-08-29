@@ -237,6 +237,13 @@ export default function Editing() {
   const originalSections = (data?.jobDescriptionSections ??
     {}) as Partial<JobDescriptionSections>;
 
+  // The same elements as they appear in the updated job description. This is
+  // what the Updated panel starts from and what "reset" returns to. The server
+  // already falls back to the original blob for jobs that have no updated one.
+  const updatedSections = (data?.jobDescriptionSectionsAi ??
+    data?.jobDescriptionSections ??
+    {}) as Partial<JobDescriptionSections>;
+
   // Reviewer edits to the editable elements, keyed by element. Items carry a
   // local id so the list can be reordered and edited without index churn.
   const [sectionEdits, setSectionEdits] = useState<
@@ -1051,7 +1058,8 @@ const acceptChangesMutation = useMutation({
     // element present in the changes has been edited, even if it is empty.
     const savedSections = (data?.jobDescriptionSectionChanges ??
       {}) as JobDescriptionSectionChanges;
-    const sections = (data?.jobDescriptionSections ??
+    const sections = (data?.jobDescriptionSectionsAi ??
+      data?.jobDescriptionSections ??
       {}) as Partial<JobDescriptionSections>;
     setSectionEdits(
       Object.fromEntries(
@@ -1744,13 +1752,13 @@ const acceptChangesMutation = useMutation({
                       onReset={() =>
                         updateSectionEdits(
                           section.key,
-                          toSectionItems(originalSections[section.key])
+                          toSectionItems(updatedSections[section.key])
                         )
                       }
                       canReset={
                         JSON.stringify(
                           (sectionEdits[section.key] ?? []).map((i) => i.text)
-                        ) !== JSON.stringify(originalSections[section.key] ?? [])
+                        ) !== JSON.stringify(updatedSections[section.key] ?? [])
                       }
                       disabled={isCompleted}
                     />
@@ -1758,7 +1766,7 @@ const acceptChangesMutation = useMutation({
                     <JdReadOnlySection
                       key={section.key}
                       label={section.label}
-                      items={originalSections[section.key]}
+                      items={updatedSections[section.key]}
                       onAddComment={
                         section.editability === "comment"
                           ? () => handleAddSectionComment(section.label)

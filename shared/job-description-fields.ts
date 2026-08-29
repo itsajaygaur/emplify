@@ -116,10 +116,10 @@ export function emptyJobDescriptionSections(): JobDescriptionSections {
 
 /**
  * Sections we split into REQUIRED / DESIRED, plus the two flat sections that
- * have no data today. Headers not listed here (Knowledge Skills & Abilities,
- * Field of Study, Additional Licenses and Certifications) are recognised as
- * headers so their bullets are skipped rather than absorbed by the section
- * above them.
+ * have no data today. Headers mapped to "ignored" (Core for Leaders, Knowledge
+ * Skills & Abilities, Field of Study, Additional Licenses and Certifications)
+ * are recognised as headers so their bullets are skipped rather than absorbed
+ * by the section above them.
  */
 type SplitBucket = "education" | "experience" | "certification";
 type FlatBucket = "environmentalConditions" | "physicalRequirements";
@@ -136,6 +136,7 @@ const BUCKET_BY_HEADER: Record<string, Bucket> = {
   "physical requirements/demands": "physicalRequirements",
   "physical requirements/demands of the position": "physicalRequirements",
   // Recognised but deliberately not displayed.
+  "core for leaders": "ignored",
   "knowledge, skills, and abilities": "ignored",
   "knowledge, skills and abilities": "ignored",
   "field of study": "ignored",
