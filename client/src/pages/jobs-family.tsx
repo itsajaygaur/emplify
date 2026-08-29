@@ -37,7 +37,11 @@ import {
 import { Notification } from "shared/notification.schema";
 import { formatDistanceToNow } from "date-fns";
 import NotificationBell from "./notification-bell";
-import { fetchWithCredentials, getLoggedInUser } from "@/lib/utils";
+import {
+  fetchWithCredentials,
+  formatDisplayDate,
+  getLoggedInUser,
+} from "@/lib/utils";
 import {
   SearchPreference,
   FilterPreference,
@@ -715,7 +719,7 @@ const exportToExcelCompleted = () => {
                           </Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {entry.last_updated}
+                          {formatDisplayDate(entry.last_updated)}
                         </td>
                       </tr>
                     ))
