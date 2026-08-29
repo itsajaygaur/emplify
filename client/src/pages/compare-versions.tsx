@@ -92,18 +92,24 @@ export default function CompareVersions() {
   });
 
   useEffect(() => {
-    setOriginalJobSummary(jobDescription?.jobSummaryAi || "");
-    setCurrentJobSummary(jobDescription?.jobSummaryChanges || "");
-    setOriginalEssentialFunctions(
+    // Left: the updated job description. Right: the reviewer's edits when there
+    // are any, otherwise the same updated content — a job nobody has edited yet
+    // has no `_changes` rows, and diffing against an empty string would render
+    // the whole job description as deleted.
+    const aiSummary = jobDescription?.jobSummaryAi || "";
+    const aiFunctions =
       jobDescription?.essentialFunctionsAi
-        .map((c: any) => c.functionText)
-        .join("\n") || ""
-    );
-    setCurrentEssentialFunctions(
+        ?.map((c: any) => c.functionText)
+        .join("\n") || "";
+    const changedFunctions =
       jobDescription?.essentialFunctionsChanges
-        .map((c: any) => c.functionText)
-        .join("\n") || ""
-    );
+        ?.map((c: any) => c.functionText)
+        .join("\n") || "";
+
+    setOriginalJobSummary(aiSummary);
+    setCurrentJobSummary(jobDescription?.jobSummaryChanges || aiSummary);
+    setOriginalEssentialFunctions(aiFunctions);
+    setCurrentEssentialFunctions(changedFunctions || aiFunctions);
   }, [jobDescription]);
 
   // console.log('original job summary', originalJobSummary);

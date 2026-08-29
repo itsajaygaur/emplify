@@ -667,9 +667,10 @@ export async function registerRoutes(app: Express): Promise<any> {
 
           -- Essential Functions AI
           (
-            SELECT oef.function_text
+            SELECT oef.function_text, oef.sort_order
             FROM essential_functions_ai oef WITH (NOLOCK)
             WHERE oef.job_id = jobs.id
+            ORDER BY oef.sort_order, oef.id
             FOR JSON PATH
           ) AS essential_functions_ai,
 
@@ -687,6 +688,7 @@ export async function registerRoutes(app: Express): Promise<any> {
             SELECT oef.function_text, oef.sort_order, oef.id
             FROM essential_functions_changes oef WITH (NOLOCK)
             WHERE oef.job_id = jobs.id
+            ORDER BY oef.sort_order, oef.id
             FOR JSON PATH
           ) AS essential_functions_changes,
 
