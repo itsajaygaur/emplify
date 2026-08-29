@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -243,6 +243,33 @@ export default function Editing() {
   const updatedSections = (data?.jobDescriptionSectionsAi ??
     data?.jobDescriptionSections ??
     {}) as Partial<JobDescriptionSections>;
+
+  // The position summary and the essential job duties the Updated panel starts
+  // from, and what "reset" returns to: the updated (AI) job description, which
+  // a job carries from the moment it is seeded. The reviewer's own edits, when
+  // there are any, are layered on top of these in the hydration effect below.
+  // Same fallback order as dbo.sp_GetJobFinalReview and dbo.sp_GetCompletedJobs
+  // use, so a job nobody has reviewed yet renders its updated content instead
+  // of an empty panel.
+  const baselineJobSummary: string =
+    data?.jobSummaryAi || data?.jobSummaryOriginal || "";
+
+  const baselineEssentialFunctions = useMemo(
+    () =>
+      ((data?.essentialFunctionsAi ?? []) as Array<{ functionText: string }>).map(
+        (ef, index) => ({
+          id: index,
+          text: ef.functionText,
+          hasEdit: false,
+        })
+      ),
+    [data]
+  );
+
+  // Duty lists compare on their text only: ids are positional and hasEdit is
+  // presentational, so neither means the reviewer changed anything.
+  const functionTexts = (functions: Array<{ text: string }>) =>
+    JSON.stringify(functions.map((func) => func.text));
 
   // Reviewer edits to the editable elements, keyed by element. Items carry a
   // local id so the list can be reordered and edited without index churn.
@@ -705,24 +732,14 @@ const acceptChangesMutation = useMutation({
   };
 
   const handleResetFunctions = () => {
-    // Reset to original database state
-    // setEssentialFunctions([...originalEssentialFunctions]);
-    setEssentialFunctions(data?.essentialFunctionsAi?.map(
-        (ef: {
-          functionText: string;
-        }, id: number) => ({
-          //id: ef.sortOrder,
-          id: id,
-          text: ef.functionText,
-          hasEdit: true,
-        })
-      ) || [] || []);
+    // Back to the updated job description, discarding the reviewer's edits.
+    setEssentialFunctions(baselineEssentialFunctions);
     setFunctionsHistory([]);
   };
 
   const handleResetJobSummary = () => {
-    // Reset job summary to original database state
-    setJobSummary(data?.jobSummaryAi);
+    // Back to the updated job description, discarding the reviewer's edits.
+    setJobSummary(baselineJobSummary);
     setIsEditingJobSummary(false);
   };
 
@@ -885,7 +902,7 @@ const acceptChangesMutation = useMutation({
   const handleEditJobSummary = () => {
     // Always open popup for text editing
     setPopupJobSummary(jobSummary);
-    setPopupOriginalJobSummary(data?.jobSummaryAi);
+    setPopupOriginalJobSummary(baselineJobSummary);
     setPopupHistory([jobSummary]);
     setPopupChanges([]);
     setShowJobSummaryPopup(true);
@@ -1053,7 +1070,7 @@ const acceptChangesMutation = useMutation({
   useEffect(() => {
     setResponsibleUsers(data?.responsibles || []);
     setReviewers(data?.reviewers || []);
-    setJobSummary(data?.jobSummaryChanges || "");
+    setJobSummary(data?.jobSummaryChanges || baselineJobSummary);
     // Fall back to the original values until this element has been saved: an
     // element present in the changes has been edited, even if it is empty.
     const savedSections = (data?.jobDescriptionSectionChanges ??
@@ -1077,50 +1094,34 @@ const acceptChangesMutation = useMutation({
     setComments(data?.comments || [])
     setIsCompleted(data?.status === "Completed" || data?.status === "Accepted As Is" || ((data?.status === "Submitted to HR" && !loggedInUser.group?.split(':')?.includes('hrleader')) ? true : false) );
     setEssentialFunctions(
-      data?.essentialFunctionsChanges?.map(
-        (ef: {
-          sortOrder: number;
-          hasEdit: boolean;
-          functionText: string;
-          id: number;
-        }) => ({
-          //id: ef.sortOrder,
-          id: ef.id,
-          text: ef.functionText,
-          hasEdit: ef.hasEdit,
-        })
-      ) || []
+      data?.essentialFunctionsChanges?.length
+        ? data.essentialFunctionsChanges.map(
+            (ef: {
+              sortOrder: number;
+              hasEdit: boolean;
+              functionText: string;
+              id: number;
+            }) => ({
+              //id: ef.sortOrder,
+              id: ef.id,
+              text: ef.functionText,
+              hasEdit: ef.hasEdit,
+            })
+          )
+        : baselineEssentialFunctions
     );
-  }, [data]);
+  }, [data, baselineJobSummary, baselineEssentialFunctions]);
 
     // Function to check for changes
     
     const checkForChanges = () => {
-    const summaryChanged = jobSummary !== data?.jobSummaryAi;
+    const summaryChanged = jobSummary !== baselineJobSummary;
     const isCriticalChanged = isCritical !== data?.isCritical;
-    
-    const functionChanges = JSON.stringify(essentialFunctions) !== JSON.stringify( data?.essentialFunctionsChanges?.map(
-        (ef: {
-          sortOrder: number;
-          hasEdit: boolean;
-          functionText: string;
-          id: number;
-        }) => ({
-          //id: ef.sortOrder,
-          id: ef.id,
-          text: ef.functionText,
-          hasEdit: ef.hasEdit,
-        })
-      ))
 
-  const essentialFunctionChanged =   JSON.stringify(essentialFunctions.map(c => ({text: c.text}))) !== JSON.stringify(data?.essentialFunctionsAi?.map((ef: {
-                        functionText: string;
-                      }) => ({
-                        text: ef.functionText,
-                      })
-                    ))
-    // Check if job summary has changed
-    // const essentialFunctionChanged = functionChanges || functionAiChanges
+    const essentialFunctionChanged =
+      functionTexts(essentialFunctions) !==
+      functionTexts(baselineEssentialFunctions);
+
     const hasAnyChanges =
       summaryChanged ||
       essentialFunctionChanged ||
@@ -1514,12 +1515,12 @@ const acceptChangesMutation = useMutation({
                         <Pencil className="w-4 h-4" />
                       </Button>
                       <AlertDialog>
-                        <AlertDialogTrigger disabled={isCompleted || jobSummary === data?.jobSummaryAi}>
+                        <AlertDialogTrigger disabled={isCompleted || jobSummary === baselineJobSummary}>
                           <Button
                             size="sm"
                             variant="ghost"
                             // onClick={handleResetJobSummary}
-                            disabled={isCompleted || jobSummary === data?.jobSummaryAi}
+                            disabled={isCompleted || jobSummary === baselineJobSummary}
                             title="Reset to original job summary"
                           >
                             <RotateCcw className="w-4 h-4" />
@@ -1611,23 +1612,13 @@ const acceptChangesMutation = useMutation({
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger 
-                           disabled={isCompleted || JSON.stringify(essentialFunctions.map(c => ({text: c.text}))) === JSON.stringify(data?.essentialFunctionsAi?.map((ef: {
-                        functionText: string;
-                      }) => ({
-                        text: ef.functionText,
-                      })
-                    ))}
+                           disabled={isCompleted || functionTexts(essentialFunctions) === functionTexts(baselineEssentialFunctions)}
                     >
                           <Button
                             size="sm"
                             variant="ghost"
                             // onClick={handleResetFunctions}
-                           disabled={isCompleted || JSON.stringify(essentialFunctions.map(c => ({text: c.text}))) === JSON.stringify(data?.essentialFunctionsAi?.map((ef: {
-                        functionText: string;
-                      }) => ({
-                        text: ef.functionText,
-                      })
-                    ))}
+                           disabled={isCompleted || functionTexts(essentialFunctions) === functionTexts(baselineEssentialFunctions)}
                             title="Reset to original functions"
                           >
                             <RotateCcw className="w-4 h-4" />
