@@ -60,6 +60,7 @@ import {
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { ResetStatusButton } from "@/components/reset-status-dialog";
 import NotificationBell from "./notification-bell";
 import { fetchWithCredentials, getLoggedInUser } from "@/lib/utils";
 import FullScreenLoader from "@/components/full-screen-loader";
@@ -2104,6 +2105,18 @@ const acceptChangesMutation = useMutation({
                 {isCompleted ? "Finished" : "Complete"}
               </Button>
             )}
+            <ResetStatusButton
+              jobId={data?.id}
+              jobCode={jobCode}
+              status={data?.status}
+              onReset={() => {
+                queryClient.invalidateQueries({
+                  queryKey: ["job-description", jobCode],
+                });
+                queryClient.invalidateQueries({ queryKey: ["jobs"] });
+                queryClient.invalidateQueries({ queryKey: ["notifications"] });
+              }}
+            />
             <Button
               variant="outline"
               className="bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-200"
@@ -2262,7 +2275,9 @@ const acceptChangesMutation = useMutation({
           <AlertDialogHeader>
             <AlertDialogTitle>Accept Changes</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure? Changes cannot be undone.
+              Are you sure? Once accepted, the job goes to HR and you will not be
+              able to edit it. If you accept in error, an HR Leader can reset the
+              job back to you.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2282,7 +2297,9 @@ const acceptChangesMutation = useMutation({
           <AlertDialogHeader>
             {/* <AlertDialogTitle>Complete this Job</AlertDialogTitle> */}
             <AlertDialogDescription className="text-black text-base" >
-              Please confirm all updates have been completed. Once the edits have been submitted it cannot be retrieved.
+              Please confirm all updates have been completed. Once submitted you
+              will not be able to edit this job; if it is completed in error, an
+              Administrator can reset it back to you.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

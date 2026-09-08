@@ -69,7 +69,7 @@ type RouteAccess = {
   allow: (user: any) => boolean;
 };
 
-const hasRole = (user: any, role: string) => user.group?.split(":").includes(role);
+export const hasRole = (user: any, role: string) => user.group?.split(":").includes(role);
 
 // admin has access to everything
 const allowRoles = (...roles: string[]) => (user: any) =>

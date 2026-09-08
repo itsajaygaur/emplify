@@ -24,7 +24,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useRole } from "@/contexts/RoleContext";
 import {
@@ -52,9 +52,11 @@ import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { fetchWithCredentials } from "@/lib/utils";
 import { JD_LABELS } from "@shared/job-description-fields";
+import { ResetStatusButton } from "@/components/reset-status-dialog";
 
 export default function JobFinalReview() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const { isAdminMode } = useRole();
   const [jobCode, setJobCode] = useState("");
 
@@ -104,7 +106,10 @@ export default function JobFinalReview() {
       ? jobFinalReview.reviewers
       : ["No reviewers available"];
 
-  const status = "Completed"; // Example status, replace with actual logic
+  // The API already returns the real status (sp_GetJobFinalReview selects
+  // j.status); an Administrator can reset a completed job, after which this
+  // page is no longer the right view for it.
+  const status: string | undefined = jobDetails?.status;
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -136,6 +141,23 @@ export default function JobFinalReview() {
                 Back
               </Link>
             </Button>
+
+            <span className="mb-4 ml-2 inline-block">
+              <ResetStatusButton
+                jobId={jobDetails?.id}
+                jobCode={jobCode}
+                status={status}
+                onReset={() => {
+                  queryClient.invalidateQueries({
+                    queryKey: ["finalReview", jobCode],
+                  });
+                  queryClient.invalidateQueries({ queryKey: ["jobs"] });
+                  queryClient.invalidateQueries({ queryKey: ["notifications"] });
+                  // No longer 'Completed', so this read-only view no longer applies.
+                  setLocation(`/editing?jobCode=${encodeURIComponent(jobCode)}`);
+                }}
+              />
+            </span>
           </div>
 
           {/* Job Info Cards */}
@@ -178,7 +200,7 @@ export default function JobFinalReview() {
                     : "bg-blue-100 text-blue-800"
                 }
               >
-                {status}
+                {status ?? "N/A"}
               </Badge>
             </div>
           </div>

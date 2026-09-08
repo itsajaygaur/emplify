@@ -1,3 +1,4 @@
+import type { JobStatus } from "./job-status";
 
 export interface JobFinalReview {
   essentialFunctions: string[];   // List of function texts
@@ -7,7 +8,7 @@ export interface JobFinalReview {
     jobTitle: string;
     jobCode: string;
     jobFamily: string;
-    status: 'Completed';
+    status: JobStatus;
     lastEditedBy: string;
     lastUpdated: string;          // Use Date if parsing
     jobSummary: string;
