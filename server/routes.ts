@@ -7,12 +7,18 @@ import {
   checkRole,
   convertKeysToCamelCase,
   convertKeysToCamelCaseWithISO,
+  hasRole,
   objectGUIDToUUID,
 } from "./helper";
 import dashboardRoutes from "./dashboard.routes";
 import notificationRoutes from "./notification.routes";
 import usersRoutes from "./users.routes";
 import { JobFinalReview } from "@shared/jobs.schema";
+import {
+  RESET_REASON_MAX_LENGTH,
+  isResettableStatus,
+  resetTargetFor,
+} from "@shared/job-status";
 import {
   isEditableSectionKey,
   parseJobDescriptionSections,
@@ -366,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<any> {
             jobCode: jobRow.Job_Code,
             jobTitle: jobRow.Job_Title,
             jobFamily: jobRow.Job_Family,
-            status: jobRow.STATUS, // Always 'Completed'
+            status: jobRow.STATUS,
             lastEditedBy: jobRow.LastEditedBy,
             lastUpdated: jobRow.Last_Updated,
             jobSummary: jobRow.JobSummary,
@@ -1074,6 +1080,161 @@ async function deleteMissingUserComments(
         }
       } catch (error) {
         res.status(500).json({ message: "Failed to update job status" });
+      }
+    }
+  );
+
+  /**
+   * Reset a job's status backwards so an error can be corrected.
+   *
+   *  - HR Leader (or Admin): 'Submitted to HR' / 'Accepted As Is' -> 'In Progress',
+   *    handing the job back to the Functional Leader to view and edit.
+   *  - Admin only: 'Completed' -> 'Submitted to HR', handing the job back to the
+   *    HR Leader to view, edit and complete again.
+   *
+   * checkRole("hrleader") is only a coarse gate here -- it short-circuits for
+   * 'admin', so it cannot express "admin only". The authoritative check is
+   * resetTargetFor(), evaluated against the job's status as read and locked
+   * inside the transaction. The client never gets to say what the current status
+   * is or what it resets to.
+   */
+  app.post(
+    "/api/job/reset-status",
+    authMiddleware,
+    checkRole("hrleader"),
+    async (req, res) => {
+      const jobId = Number(req.body?.jobId);
+      const reason = String(req.body?.reason ?? "").trim();
+      const actorName = req.user?.name ?? "";
+
+      if (!Number.isInteger(jobId) || jobId <= 0) {
+        return res.status(400).json({ message: "A valid jobId is required" });
+      }
+      if (!reason) {
+        return res
+          .status(400)
+          .json({ message: "A reason for the reset is required" });
+      }
+      if (reason.length > RESET_REASON_MAX_LENGTH) {
+        return res.status(400).json({
+          message: `Reason must be ${RESET_REASON_MAX_LENGTH} characters or fewer`,
+        });
+      }
+
+      const actor = {
+        isAdmin: hasRole(req.user, "admin"),
+        isHrLeader: hasRole(req.user, "hrleader"),
+      };
+
+      try {
+        const pool = await getPool();
+        const transaction = new sql.Transaction(pool);
+        try {
+          await transaction.begin();
+
+          const currentResult = await new sql.Request(transaction)
+            .input("jobId", sql.Int, jobId)
+            .query(`
+              SELECT id, job_code, status
+              FROM jobs WITH (UPDLOCK, HOLDLOCK)
+              WHERE id = @jobId
+            `);
+          const job = currentResult.recordset[0];
+
+          if (!job) {
+            await transaction.rollback();
+            return res.status(404).json({ message: "Job not found" });
+          }
+
+          const target = resetTargetFor(job.status, actor);
+          if (!target) {
+            await transaction.rollback();
+            // Tell "you may not do this" apart from "nobody may do this".
+            return isResettableStatus(job.status)
+              ? res.status(403).json({
+                  message:
+                    "Only an Administrator can reset a job in this status",
+                })
+              : res.status(409).json({
+                  message: `A job with status '${job.status}' cannot be reset`,
+                });
+          }
+
+          const isReturnToLeader = target === "In Progress";
+
+          // The status guard closes the race where the job moved on between the
+          // read and the write (two resets, or a reset racing a Save Draft).
+          const updated = await new sql.Request(transaction)
+            .input("jobId", sql.Int, jobId)
+            .input("target", sql.NVarChar(50), target)
+            .input("expected", sql.NVarChar(50), job.status)
+            .input("actor", sql.NVarChar(255), actorName)
+            .query(`
+              UPDATE jobs
+                 SET status = @target,
+                     -- jobs.reviewer is the existing last-writer stamp, written
+                     -- the same way (req.user.name) by PUT /api/job-description.
+                     reviewer = @actor,
+                     last_updated = SYSDATETIME()
+               WHERE id = @jobId AND status = @expected
+            `);
+
+          if (updated.rowsAffected[0] !== 1) {
+            await transaction.rollback();
+            return res.status(409).json({
+              message: "Job status changed while you were resetting it",
+            });
+          }
+
+          const title = isReturnToLeader
+            ? "Job Returned for Edits"
+            : "Job Reopened for HR Review";
+          const message = isReturnToLeader
+            ? `Job ${job.job_code} was returned for edits by ${actorName}: ${reason}`
+            : `Job ${job.job_code} was reopened for HR review by ${actorName}: ${reason}`;
+          // The notification status drives visibility, not just the label:
+          // sp_GetUserNotifications hides rows with status 'Submitted to HR'
+          // from anyone who is not an HR leader. A job returned to the
+          // Functional Leader must therefore NOT use that label, or the person
+          // who needs to act on it would never see it. The admin reset does use
+          // it, because the job really is back in HR's court.
+          const notificationStatus = isReturnToLeader
+            ? "Returned for Edits"
+            : "Submitted to HR";
+
+          await new sql.Request(transaction)
+            .input("jobId", sql.Int, jobId)
+            .input("username", sql.NVarChar(255), "")
+            .input("title", sql.NVarChar(255), title)
+            .input("message", sql.NVarChar(sql.MAX), message)
+            .input("notificationStatus", sql.NVarChar(50), notificationStatus)
+            .query(`
+              DELETE FROM notifications WHERE job_id = @jobId;
+
+              INSERT INTO notifications (
+                username, job_id, title, message, type, category, priority, is_read, status
+              )
+              VALUES (
+                @username, @jobId, @title, @message,
+                'warning', 'job_status', 'high', 0, @notificationStatus
+              );
+            `);
+
+          await transaction.commit();
+          res.status(200).json({
+            message: `Job reset to ${target}`,
+            previousStatus: job.status,
+            status: target,
+          });
+        } catch (error) {
+          log("err ==> ", error);
+          await transaction
+            .rollback()
+            .catch(() => log("Failed to rollback"));
+          res.status(500).json({ message: "Failed to reset job status" });
+        }
+      } catch (error) {
+        res.status(500).json({ message: "Failed to reset job status" });
       }
     }
   );

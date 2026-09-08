@@ -306,7 +306,12 @@ GO
 /* -------------------------------------------------------------------------
    notifications
    status carries the workflow label the UI shows as a badge ('Submitted to HR',
-   'Accepted As Is', 'Changes Complete'). is_read drives the unread count.
+   'Accepted As Is', 'Changes Complete', 'Returned for Edits'). is_read drives
+   the unread count.
+   It also drives VISIBILITY: sp_GetUserNotifications / sp_GetAllNotifications
+   hide rows whose status is exactly 'Submitted to HR' from anyone who is not an
+   HR leader, so a notification meant for a functional leader must use a
+   different label.
    ------------------------------------------------------------------------- */
 IF OBJECT_ID('dbo.notifications', 'U') IS NULL
 BEGIN

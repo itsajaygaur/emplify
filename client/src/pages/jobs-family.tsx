@@ -399,6 +399,8 @@ export default function JobsFamily() {
         return "bg-purple-100 text-purple-800";
       case "Submitted to HR":
         return "bg-orange-100 text-orange-800";
+      case "Accepted As Is":
+        return "bg-teal-100 text-teal-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
