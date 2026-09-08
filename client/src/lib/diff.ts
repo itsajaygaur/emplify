@@ -18,6 +18,10 @@ export interface DiffSegment {
  * each token unchanged / removed / added.
  */
 export function createWordDiff(original: string, current: string): DiffSegment[] {
+  // `"".split(...)` yields `[""]`, so two empty sides would otherwise "match"
+  // and hand the caller one unchanged segment of empty text to render.
+  if (!original && !current) return [];
+
   const originalWords = original.split(/(\s+|[\n\r]+)/);
   const currentWords = current.split(/(\s+|[\n\r]+)/);
 

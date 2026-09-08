@@ -49,9 +49,10 @@ const functionsToText = (rows?: EssentialFunctionRow[]) =>
   (rows ?? []).map((row) => row.functionText).join("\n");
 
 export default function CompareVersions() {
-  const [showAiBox, setShowAiBox] = useState(false);
-  const [showDifferencesOnly, setShowDifferencesOnly] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(true);
+  // Both toggles are parked: the controls that set them are commented out
+  // below, so read the value only rather than leaving a dead setter behind.
+  const [showAiBox] = useState(false);
+  const [showDifferencesOnly] = useState(false);
 
   // Get lastUpdatedDate and jobCode from URL parameters
   const [lastUpdatedDate, setLastUpdatedDate] = useState("June 7, 2025");
@@ -69,7 +70,7 @@ export default function CompareVersions() {
     }
   }, []);
 
-  const { data: jobDescription } = useQuery<JobDescriptionResponse>({
+  const { data: jobDescription, isPending } = useQuery<JobDescriptionResponse>({
     queryFn: () =>
       fetchWithCredentials(`/api/job-description/${jobCode}`).then(
         (res) => res.json() as Promise<JobDescriptionResponse>
@@ -81,7 +82,6 @@ export default function CompareVersions() {
   useEffect(() => {
     // Scroll to top of page when component mounts
     window.scrollTo(0, 0);
-    setIsPageLoading(false);
   }, []);
 
   // Every diff on this page reads the same way: the left of the comparison is
@@ -182,8 +182,10 @@ export default function CompareVersions() {
     <div className="min-h-screen bg-gray-50 flex">
       <Sidebar />
 
-      {/* Loading Overlay */}
-      {isPageLoading && <FullScreenLoader />}
+      {/* Loading Overlay. Driven by the query so the panels never show their
+          "Not specified" placeholders for elements that are merely still
+          loading, which reads as real content. */}
+      {isPending && <FullScreenLoader />}
 
       <main className="flex-1 p-8">
         <div className="max-w-7xl mx-auto">
@@ -335,7 +337,7 @@ export default function CompareVersions() {
             {/* Essential Functions Section */}
             <div
               className={cn(
-                "grid grid-cols-1 lg:grid-cols-3 gap-6",
+                "grid grid-cols-1 gap-6",
                 showAiBox ? "lg:grid-cols-3" : "lg:grid-cols-2"
               )}
             >
