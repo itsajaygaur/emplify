@@ -108,10 +108,6 @@ export default function JobsFamily() {
   const urlParams = new URLSearchParams(window.location.search);
   // const reviewerParam = urlParams.get("reviewer");
   const searchParam = urlParams.get("search");
-  const jobFamilyParam = urlParams.get("jobFamilyId");
-  // A deep link fully defines the filter state, so saved preferences must not
-  // overwrite it once they resolve (see the preference hydration effect below).
-  const hasUrlFilter = Boolean(searchParam || jobFamilyParam);
 
   // URL filter setup (untouched logic)
   useEffect(() => {
@@ -120,12 +116,7 @@ export default function JobsFamily() {
     //   setSearchTerm(decodedReviewer);
     //   setSelectedStatus("");
     // } else 
-    const jobFamilyId = Number(jobFamilyParam);
-    if (jobFamilyParam && Number.isInteger(jobFamilyId) && jobFamilyId > 0) {
-      setSelectedJobFamily(jobFamilyId);
-      setSearchTerm("");
-      setSelectedStatus("");
-    } else if (searchParam) {
+    if (searchParam) {
       const decodedSearch = decodeURIComponent(searchParam);
       setSearchTerm(decodedSearch);
       setSelectedStatus("");
@@ -217,11 +208,11 @@ export default function JobsFamily() {
       }
       const merged = Object.assign({}, ...preferences);
       // console.log("Merged preferences:", merged);
-      if (!hasUrlFilter) {
+      if(!searchParam){
         setSearchTerm(merged.search || "");
-        setSelectedJobFamily(merged.jobfamily || "");
-        setSelectedStatus(merged.status || "");
       }
+      setSelectedJobFamily(merged.jobfamily || "");
+      setSelectedStatus(merged.status || "");
     }
   }, [searchPreferences]);
 
