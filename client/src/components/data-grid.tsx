@@ -31,6 +31,7 @@ import type {
   DashboardJobFamily,
   DashboardReviewer,
 } from "@shared/dashboard.schema";
+import { Link } from "wouter";
 
 interface DataGridProps {
   title: string;
@@ -441,9 +442,13 @@ export function DataGrid({
                           onClick={() => onJobFamilyClick?.(jobFamily)}
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <span className="text-blue-600 hover:text-blue-800 underline transition-colors">
+                            <Link
+                              href={`/jobs?jobFamilyId=${jobFamily.id}`}
+                              className="text-blue-600 hover:text-blue-800 underline transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               {jobFamily.jobFamily}
-                            </span>
+                            </Link>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900 max-w-48">
                             <div className="flex flex-wrap gap-1">
