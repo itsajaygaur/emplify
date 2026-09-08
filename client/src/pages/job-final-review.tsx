@@ -141,23 +141,6 @@ export default function JobFinalReview() {
                 Back
               </Link>
             </Button>
-
-            <span className="mb-4 ml-2 inline-block">
-              <ResetStatusButton
-                jobId={jobDetails?.id}
-                jobCode={jobCode}
-                status={status}
-                onReset={() => {
-                  queryClient.invalidateQueries({
-                    queryKey: ["finalReview", jobCode],
-                  });
-                  queryClient.invalidateQueries({ queryKey: ["jobs"] });
-                  queryClient.invalidateQueries({ queryKey: ["notifications"] });
-                  // No longer 'Completed', so this read-only view no longer applies.
-                  setLocation(`/editing?jobCode=${encodeURIComponent(jobCode)}`);
-                }}
-              />
-            </span>
           </div>
 
           {/* Job Info Cards */}
@@ -295,6 +278,24 @@ export default function JobFinalReview() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="w-fit mx-auto mt-8 mb-8">
+            <ResetStatusButton
+              jobId={jobDetails?.id}
+              jobCode={jobCode}
+              status={status}
+              onReset={() => {
+                queryClient.invalidateQueries({
+                  queryKey: ["finalReview", jobCode],
+                });
+                queryClient.invalidateQueries({ queryKey: ["jobs"] });
+                queryClient.invalidateQueries({ queryKey: ["notifications"] });
+                // No longer 'Completed', so this read-only view no longer applies.
+                setLocation(`/editing?jobCode=${encodeURIComponent(jobCode)}`);
+              }}
+            />
           </div>
         </div>
       </main>
