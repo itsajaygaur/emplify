@@ -21,13 +21,6 @@ import {
   type JobStatus,
 } from "@shared/job-status";
 
-/**
- * Temporarily hides the reset button everywhere it is rendered. The component,
- * its dialog and the /api/job/reset-status endpoint are all left in place --
- * flip this back to `true` to bring the feature back.
- */
-const RESET_STATUS_BUTTON_ENABLED = false;
-
 interface ResetStatusButtonProps {
   jobId: number | undefined;
   jobCode: string | number | undefined;
@@ -83,7 +76,7 @@ export function ResetStatusButton({
     },
   });
 
-  if (!RESET_STATUS_BUTTON_ENABLED || !target) return null;
+  if (!target) return null;
 
   const returningToLeader = target === "In Progress";
   const label = returningToLeader
