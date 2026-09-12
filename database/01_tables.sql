@@ -283,6 +283,12 @@ GO
    comments
    author is nullable: server/routes.ts treats a NULL author as "editable by
    anyone", which is how pre-existing/imported comments behave.
+
+   section_key is the JD element the comment is about (a JobDescriptionSections
+   key, e.g. 'educationRequired'). It is nullable for imported rows; the app
+   falls back to DEFAULT_COMMENT_SECTION_KEY rather than leaving a comment
+   unrendered, because PUT /api/job-description deletes the caller's comments
+   that are missing from the save payload.
    ------------------------------------------------------------------------- */
 IF OBJECT_ID('dbo.comments', 'U') IS NULL
 BEGIN
@@ -293,6 +299,7 @@ BEGIN
         comment     NVARCHAR(MAX)  NULL,
         category    NVARCHAR(100)  NULL,
         author      NVARCHAR(255)  NULL,
+        section_key NVARCHAR(64)   NULL,
         is_critical BIT            NOT NULL CONSTRAINT DF_comments_is_critical DEFAULT (0),
         created_at  DATETIME2(0)   NOT NULL CONSTRAINT DF_comments_created_at DEFAULT (SYSDATETIME()),
         updated_at  DATETIME2(0)   NOT NULL CONSTRAINT DF_comments_updated_at DEFAULT (SYSDATETIME()),
@@ -301,6 +308,18 @@ BEGIN
     );
     CREATE INDEX IX_comments_job_id ON dbo.comments (job_id, created_at DESC);
 END
+GO
+
+/* Added after the first release; see client/20260912-MSSQL-comments-section-key.sql. */
+IF COL_LENGTH('dbo.comments', 'section_key') IS NULL
+    ALTER TABLE dbo.comments ADD section_key NVARCHAR(64) NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_comments_job_section' AND object_id = OBJECT_ID('dbo.comments')
+)
+    CREATE INDEX IX_comments_job_section ON dbo.comments (job_id, section_key, created_at DESC);
 GO
 
 /* -------------------------------------------------------------------------

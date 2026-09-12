@@ -101,6 +101,58 @@ export function isEditableSectionKey(
   return (JD_EDITABLE_SECTION_KEYS as string[]).includes(key);
 }
 
+/**
+ * Elements a Functional Leader cannot edit directly: change requests for these
+ * go through the comment box shown underneath the element.
+ */
+export const JD_COMMENTABLE_SECTION_KEYS = JD_SECTIONS.filter(
+  (section) => section.editability === "comment"
+).map((section) => section.key);
+
+/**
+ * Where a comment whose section_key is missing or no longer commentable is
+ * shown. Every comment must land under some element: the editing page sends
+ * back every comment it loaded, and PUT /api/job-description deletes the
+ * caller's comments that are missing from that payload — so a comment nothing
+ * renders is a comment the next save destroys.
+ */
+export const DEFAULT_COMMENT_SECTION_KEY: keyof JobDescriptionSections =
+  JD_COMMENTABLE_SECTION_KEYS[0];
+
+export function isCommentableSectionKey(
+  key?: string | null
+): key is keyof JobDescriptionSections {
+  return !!key && (JD_COMMENTABLE_SECTION_KEYS as string[]).includes(key);
+}
+
+/** The element a comment belongs to, falling back for unknown keys. */
+export function commentSectionKey(
+  key?: string | null
+): keyof JobDescriptionSections {
+  return isCommentableSectionKey(key) ? key : DEFAULT_COMMENT_SECTION_KEY;
+}
+
+/** Display label for a section key, for the exports and the HR report. */
+export function jdSectionLabel(key?: string | null): string {
+  return JD_SECTIONS.find((section) => section.key === key)?.label ?? "";
+}
+
+/**
+ * A reviewer comment on one JD element. `isEditable` is derived per request by
+ * the server: a comment is editable by its author, and one with no author is
+ * editable by anyone.
+ */
+export interface JdComment {
+  id: number;
+  sectionKey: string;
+  comment: string;
+  category: string;
+  author: string;
+  createdAt: string;
+  isEditable: boolean;
+  isCritical: boolean;
+}
+
 export function emptyJobDescriptionSections(): JobDescriptionSections {
   return {
     educationRequired: [],
