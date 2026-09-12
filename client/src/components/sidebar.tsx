@@ -446,7 +446,7 @@ const filterMenuItems = menuItems.filter((item) => {
   }, [searchPreferences]);
 
   return (
-    <div className="bg-blue-900 text-white w-64 min-h-screen p-4 flex flex-col">
+    <div className="bg-blue-900 text-white w-64 shrink-0 h-screen sticky top-0 overflow-y-auto p-4 flex flex-col">
       {/* Logo Section */}
       <div className="mb-8 text-center">
         <div className="bg-white rounded-lg p-3">
