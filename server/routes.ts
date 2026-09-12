@@ -20,7 +20,9 @@ import {
   resetTargetFor,
 } from "@shared/job-status";
 import {
+  commentSectionKey,
   isEditableSectionKey,
+  jdSectionLabel,
   parseJobDescriptionSections,
 } from "@shared/job-description-fields";
 import XLSX from "xlsx";
@@ -471,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<any> {
           FOR JSON PATH
         ) AS reviewer_names,
         (
-          SELECT c.comment, c.category, c.author, FORMAT(c.created_at, 'MM-dd-yyyy HH:mm') AS createdAt, c.is_critical
+          SELECT c.comment, c.category, c.author, c.section_key, FORMAT(c.created_at, 'MM-dd-yyyy HH:mm') AS createdAt, c.is_critical
           FROM comments c WITH (NOLOCK)
           WHERE c.job_id = jobs.id
           ORDER BY c.created_at DESC
@@ -495,8 +497,8 @@ export async function registerRoutes(app: Express): Promise<any> {
             : "",
           "Comments": job.comments
             ? JSON.parse(job.comments)
-                ?.map((c: { comment: string; category: string; author: string; createdAt: string; isCritical: boolean }) => 
-                  `Category: ${c.category || "N/A"} | Author: ${c.author || "N/A"} | Created At: ${c.createdAt} | Critical: ${c.isCritical ? "Yes" : "No"}\nComment: ${c.comment || "N/A"}`
+                ?.map((c: { comment: string; category: string; author: string; section_key: string; createdAt: string; is_critical: boolean }) => 
+                  `Section: ${jdSectionLabel(c.section_key) || "N/A"} | Category: ${c.category || "N/A"} | Author: ${c.author || "N/A"} | Created At: ${c.createdAt} | Critical: ${c.is_critical ? "Yes" : "No"}\nComment: ${c.comment || "N/A"}`
                 )
                 ?.join("\n\n")
             : "",
@@ -682,7 +684,7 @@ export async function registerRoutes(app: Express): Promise<any> {
 
           -- Comments
           (
-            SELECT c.id, c.comment, c.category, c.author, FORMAT(c.created_at, 'MM-dd-yyyy HH:mm') AS createdAt, c.is_critical
+            SELECT c.id, c.comment, c.category, c.author, c.section_key, FORMAT(c.created_at, 'MM-dd-yyyy HH:mm') AS createdAt, c.is_critical
             FROM comments c WITH (NOLOCK)
             WHERE c.job_id = jobs.id
             ORDER BY c.created_at DESC
@@ -727,7 +729,15 @@ export async function registerRoutes(app: Express): Promise<any> {
         job.essential_functions_changes = JSON.parse(
           job?.essential_functions_changes || "[]"
         );
-        job.comments = JSON.parse(job?.comments || "[]").map((c:any) => ({...c, isEditable: (c.author === req.user?.name || !c.author) }));
+        // Every comment belongs to a JD element. An unknown or missing
+        // section_key falls back rather than going unrendered: the editing page
+        // sends back every comment it loaded, and the save below deletes the
+        // caller's comments that are missing from that payload.
+        job.comments = JSON.parse(job?.comments || "[]").map((c: any) => ({
+          ...c,
+          section_key: commentSectionKey(c.section_key),
+          isEditable: c.author === req.user?.name || !c.author,
+        }));
         // Split the free-text `other_job_description` blobs into the named
         // Emplify JD elements the editing page renders. The plain blob holds
         // the legacy job description, `_ai` the updated one; the editing page
@@ -817,6 +827,8 @@ export async function registerRoutes(app: Express): Promise<any> {
           await deleteMissingUserComments(transaction, jobId, reviewer, payloadIds);
 
           // --- Step 3: Upsert comments from payload ---
+          // Each comment is stored against the JD element it was written under;
+          // commentSectionKey() coerces anything the UI cannot render.
           for (const c of comments) {
             if (isExistingComment(c, dbMap)) {
               await updateIfAuthorMatches(transaction, c, reviewer);
@@ -893,10 +905,11 @@ async function updateIfAuthorMatches(transaction: sql.Transaction, comment: any,
     .input("comment", sql.NVarChar, comment.comment)
     .input("category", sql.NVarChar, comment.category)
     .input("author", sql.NVarChar, user)
+    .input("sectionKey", sql.NVarChar(64), commentSectionKey(comment.sectionKey))
     .input("isCritical", sql.Bit, comment.isCritical)
     .query(`
       UPDATE comments
-      SET comment = @comment, category = @category, author = @author, is_critical = @isCritical
+      SET comment = @comment, category = @category, author = @author, section_key = @sectionKey, is_critical = @isCritical
       WHERE id = @id
         AND (author = @author OR author IS NULL)
     `);
@@ -908,10 +921,11 @@ async function insertComment(transaction: sql.Transaction, comment: any, jobId: 
     .input("comment", sql.NVarChar, comment.comment)
     .input("category", sql.NVarChar, comment.category)
     .input("author", sql.NVarChar, user)
+    .input("sectionKey", sql.NVarChar(64), commentSectionKey(comment.sectionKey))
     .input("isCritical", sql.Bit, comment.isCritical)
     .query(`
-      INSERT INTO comments (job_id, comment, category, author, is_critical)
-      VALUES (@jobId, @comment, @category, @author, @isCritical)
+      INSERT INTO comments (job_id, comment, category, author, section_key, is_critical)
+      VALUES (@jobId, @comment, @category, @author, @sectionKey, @isCritical)
     `);
 
 }
@@ -1523,8 +1537,8 @@ async function deleteMissingUserComments(
           "Functional Leader": job.Reviewers.replace(/\\n/g, "\n"),
           "Comments": job.Comments
             ? JSON.parse(job.Comments)
-                ?.map((c: { Comment: string; Category: string; Author: string; CreatedAt: string; IsCritical: boolean }) => 
-                  `Category: ${c.Category || "N/A"} | Author: ${c.Author || "N/A"} | Created At: ${c.CreatedAt} | Critical: ${c.IsCritical ? "Yes" : "No"}\nComment: ${c.Comment || "N/A"}`
+                ?.map((c: { Comment: string; Category: string; Author: string; SectionKey: string; CreatedAt: string; IsCritical: boolean }) => 
+                  `Section: ${jdSectionLabel(c.SectionKey) || "N/A"} | Category: ${c.Category || "N/A"} | Author: ${c.Author || "N/A"} | Created At: ${c.CreatedAt} | Critical: ${c.IsCritical ? "Yes" : "No"}\nComment: ${c.Comment || "N/A"}`
                 )
                 ?.join("\n\n")
             : "",

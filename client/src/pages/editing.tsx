@@ -70,8 +70,14 @@ import {
   type JdSectionItem,
 } from "@/components/jd-editable-section";
 import {
+  JdSectionComments,
+  type JdCommentDraft,
+} from "@/components/jd-section-comments";
+import {
+  commentSectionKey,
   JD_LABELS,
   JD_SECTIONS,
+  type JdComment,
   type JobDescriptionSectionChanges,
   type JobDescriptionSections,
 } from "@shared/job-description-fields";
@@ -138,44 +144,7 @@ export default function Editing() {
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const [commentCategory, setCommentCategory] = useState("");
-  const [comments, setComments] = useState([
-    {
-      id: 1,
-      comment: "Record Vital Signs And Immediately Escalate Critical Values",
-      category: "Critical",
-      author: "John Smith",
-      createdAt: "May 30, 2025",
-      isEditable: true,
-      isCritical: false
-    },
-    {
-      id: 2,
-      comment: "Aid With Patient Hygiene And Nutritional Needs",
-      category: "Non-Critical",
-      author: "Sarah Johnson",
-      createdAt: "May 30, 2025",
-      isEditable: false,
-      isCritical: false
-    },
-    {
-      id: 3,
-      comment: "Maintain Patient Care Logs And Coordinate With Nursing Staff",
-      category: "Non-Critical",
-      author: "Michael Brown",
-      createdAt: "May 30, 2025",
-      isEditable: true,
-      isCritical: false
-    },
-    {
-      id: 4,
-      comment: "Support Safe Patient Transport Within The Facility",
-      category: "Non-Critical",
-      author: "Emily Davis",
-      createdAt: "May 30, 2025",
-      isEditable: false,
-      isCritical: false
-    },
-  ])
+  const [comments, setComments] = useState<JdComment[]>([]);
 
 
   // State for managing multiple last edited by users
@@ -199,8 +168,6 @@ export default function Editing() {
   //   "Additional requirements and considerations for this role may include specialized training, certifications, or equipment handling protocols."
   // );
   const [commentEditable, setCommentEditable] = useState<number | null>(null);
-  const [showAdditionalTextCommentModal, setShowAdditionalTextCommentModal] =
-    useState(false);
   const [additionalTextComment, setAdditionalTextComment] = useState("");
   const [isCritical, setIsCritical] = useState(false);
   const [status, setStatus] = useState("In Progress");
@@ -285,16 +252,49 @@ export default function Editing() {
     setSectionEdits((prev) => ({ ...prev, [key]: items }));
 
 
-  // Elements reviewers cannot edit directly route change requests through the
-  // comment box, pre-tagged so HR can see which element a note refers to.
-  const commentsSectionRef = useRef<HTMLDivElement>(null);
+  // Elements reviewers cannot edit directly route change requests through a
+  // comment box shown underneath the element itself, so a reviewer never leaves
+  // the element to comment on it. Only one comment is open at a time, so the
+  // draft lives here and is handed to whichever element hosts the open editor.
+  const commentDraft: JdCommentDraft = {
+    text: additionalTextComment,
+    category: commentCategory,
+    isCritical,
+  };
 
-  const handleAddSectionComment = (label: string) => {
+  const updateCommentDraft = (patch: Partial<JdCommentDraft>) => {
+    if (patch.text !== undefined) setAdditionalTextComment(patch.text);
+    if (patch.category !== undefined) setCommentCategory(patch.category);
+    if (patch.isCritical !== undefined) setIsCritical(patch.isCritical);
+  };
+
+  const clearCommentDraft = () => {
+    setCommentEditable(null);
+    setAdditionalTextComment("");
+    setCommentCategory("");
+    setIsCritical(false);
+  };
+
+  // Comments grouped by the element they belong to. `comments` stays the single
+  // source of truth for saving: PUT /api/job-description deletes the caller's
+  // comments that are missing from the payload, so a comment that was loaded
+  // must never be dropped from state just because a thread does not show it.
+  const commentsBySection = useMemo(() => {
+    const grouped: Record<string, JdComment[]> = {};
+    for (const comment of comments) {
+      const key = commentSectionKey(comment.sectionKey);
+      (grouped[key] ||= []).push(comment);
+    }
+    return grouped;
+  }, [comments]);
+
+  const handleAddSectionComment = (sectionKey: string) => {
     if (commentEditable) return;
     const id = Date.now();
     setComments((prev) => [
       {
         id,
+        sectionKey,
         comment: "",
         category: "",
         author: "",
@@ -306,11 +306,47 @@ export default function Editing() {
     ]);
     setCommentEditable(id);
     setCommentCategory("");
-    setAdditionalTextComment(`${label}: `);
-    commentsSectionRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    setAdditionalTextComment("");
+    setIsCritical(false);
+  };
+
+  const handleEditComment = (comment: JdComment) => {
+    // One editor at a time: another element's open draft is off screen, so
+    // silently replacing it would lose work the reviewer cannot see.
+    if (commentEditable) return;
+    setAdditionalTextComment(comment.comment);
+    setCommentCategory(comment.category);
+    setIsCritical(comment.isCritical);
+    setCommentEditable(comment.id);
+  };
+
+  const handleCancelComment = (comment: JdComment) => {
+    // A comment that was never saved has nothing to fall back to, so drop it.
+    if (!comment.comment?.trim()) {
+      setComments((prev) => prev.filter((c) => c.id !== comment.id));
+    }
+    clearCommentDraft();
+  };
+
+  const handleSaveComment = (comment: JdComment) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === comment.id
+          ? {
+              ...c,
+              comment: additionalTextComment,
+              category: commentCategory,
+              isCritical,
+            }
+          : c
+      )
+    );
+    clearCommentDraft();
+  };
+
+  const handleDeleteComment = (id: number) => {
+    setComments((prev) => prev.filter((c) => c.id !== id));
+    if (commentEditable === id) clearCommentDraft();
   };
 
   const sectionChangesPayload = () =>
@@ -880,17 +916,6 @@ const acceptChangesMutation = useMutation({
   //   setIsEditingAdditionalText(false);
   // };
 
-  const handleAdditionalTextComment = () => {
-    setShowAdditionalTextCommentModal(true);
-  };
-
-  const handleSaveAdditionalTextComment = () => {
-    // Save the comment functionality here
-    // console.log("Additional text comment saved:", additionalTextComment);
-    setShowAdditionalTextCommentModal(false);
-    // setAdditionalTextComment("");
-  };
-
   // Helper function to count words
   const countWords = (text: string) => {
     return text
@@ -1061,11 +1086,6 @@ const acceptChangesMutation = useMutation({
     setShowJobSummaryCloseConfirmation(false);
   };
 
-  const handleCancelAdditionalTextComment = () => {
-    setAdditionalTextComment("");
-    setShowAdditionalTextCommentModal(false);
-  };
-
   const loggedInUser = getLoggedInUser()
 
   useEffect(() => {
@@ -1091,7 +1111,6 @@ const acceptChangesMutation = useMutation({
     );
     // setIsCritical(data?.isCritical || false);
     // setAdditionalText(data?.otherJobDescription || "");
-    setAdditionalTextComment(data?.comments || "")
     setComments(data?.comments || [])
     setIsCompleted(data?.status === "Completed" || data?.status === "Accepted As Is" || ((data?.status === "Submitted to HR" && !loggedInUser.group?.split(':')?.includes('hrleader')) ? true : false) );
     setEssentialFunctions(
@@ -1761,289 +1780,27 @@ const acceptChangesMutation = useMutation({
                       items={updatedSections[section.key]}
                       onAddComment={
                         section.editability === "comment"
-                          ? () => handleAddSectionComment(section.label)
+                          ? () => handleAddSectionComment(section.key)
                           : undefined
                       }
                       disabled={isCompleted}
-                    />
+                    >
+                      {section.editability === "comment" && (
+                        <JdSectionComments
+                          comments={commentsBySection[section.key] ?? []}
+                          editingCommentId={commentEditable}
+                          draft={commentDraft}
+                          onDraftChange={updateCommentDraft}
+                          onEdit={handleEditComment}
+                          onCancel={handleCancelComment}
+                          onSave={handleSaveComment}
+                          onDelete={handleDeleteComment}
+                          disabled={isCompleted}
+                        />
+                      )}
+                    </JdReadOnlySection>
                   )
                 )}
-
-                {/* Comments Section */}
-                <div className="mb-6" ref={commentsSectionRef}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">
-                      Comments
-                    </h4>
-                    <div className="flex items-center space-x-3">
-                      {/* <Button
-                        size="sm"
-                        variant="ghost"
-                        // onClick={handleEditAdditionalText}
-                        title="Edit comments"
-                        disabled={isCompleted}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button> */}
-
-                              <Button size="sm" disabled={isCompleted} onClick={() => {
-                                if(commentEditable){
-                                  return
-                                }
-                                const generatedId = Date.now();
-                                setComments(prev => [
-                                  {
-                                    id: Date.now(),
-                                    category: "",
-                                    comment: "",
-                                    author: "",
-                                    createdAt: '',
-                                    isEditable: true,
-                                    isCritical: false
-                                  },
-                                  ...prev,
-                                ]);
-                                setCommentEditable(generatedId);
-                                setAdditionalTextComment("");
-                                
-                              }} className="flex items-center gap-2">
-                                <Plus  /> Add Comment
-                              </Button>
-                    </div>
-                  </div>
-
-<div className="space-y-4">
-
-  {comments?.map((comment, index) => (
-    <div
-      key={index}
-      className="bg-white shadow-sm rounded-xl border border-gray-200 p-4"
-    >
-      {commentEditable === comment.id ? (
-        <div className="space-y-4">
-          {/* Category Selector */}
-          <div className="flex gap-4 items-end" >
-            <div>
-              <label className="text-sm font-medium text-gray-700">Category</label>
-              <Select defaultValue={comment.category} onValueChange={(value) => setCommentCategory(value)}>
-                <SelectTrigger className="w-[200px] h-9 mt-1">
-                  <SelectValue placeholder="Select a Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Category</SelectLabel>
-                    <SelectItem value="generic">Generic</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="security">Security</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                    {/* <SelectItem value="apple">Generic</SelectItem>
-                    <SelectItem value="banana"></SelectItem>
-                    <SelectItem value="blueberry">Blueberry</SelectItem>
-                    <SelectItem value="grapes">Grapes</SelectItem>
-                    <SelectItem value="pineapple">Pineapple</SelectItem> */}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-
-              <div className="flex items-center space-x-2 mb-2" title="Please note, we are currently working on updating content related to the Other Job Description.  Please only check this box if the comment below is related to a field in the Other Job Description section that needs to be addressed prior to January 1st, 2026." >
-                <input
-                  type="checkbox"
-                  id="critical-checkbox"
-                  defaultChecked={comment.isCritical}
-                  onChange={(e) => setIsCritical(e.target.checked)}
-                  className="h-4 w-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 focus:ring-2"
-                  disabled={isCompleted}
-                />
-                <label
-                  htmlFor="critical-checkbox"
-                  className="text-sm font-medium cursor-pointer text-red-600"
-                >
-                  Critical
-                </label>
-              </div>
-          </div>
-
-          {/* Textarea */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">
-              Comment
-            </label>
-            <Textarea
-              value={additionalTextComment}
-              disabled={!commentCategory && !comment.category}
-              onChange={(e) => setAdditionalTextComment(e.target.value)}
-              className="min-h-[120px] resize-none mt-1"
-              placeholder="Write your comment..."
-              autoFocus
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setCommentEditable(null)
-                setCommentCategory("")
-                setAdditionalTextComment("")
-                if(!comment.comment?.trim()){
-                  setComments(prev => prev.filter(c => c.id !== comment.id))
-                }
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-                size="sm" 
-                className="bg-blue-600 text-white hover:bg-blue-700"
-                disabled={(!commentCategory) || (!additionalTextComment?.trim()) } 
-                onClick={() => {
-                  setComments(prev => prev.map(c => {
-                    if(c.id === comment.id){
-                      return {...c, comment: additionalTextComment, isCritical: isCritical, category: commentCategory}
-                    }
-                    return c
-                  }))
-                  setCommentEditable(null)
-                  setAdditionalTextComment("")
-                  setCommentCategory("")
-                }}>
-              Save
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            {/* Meta Info */}
-            <div className="flex flex-col gap-1">
-              <div>
-
-              {comment.category && <span className="inline-flex items-center text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full w-fit">
-                {comment.category}
-              </span>}
-              {comment.isCritical && 
-              <span className="inline-flex items-center text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full ml-2" >
-                Critical
-              </span>}
-              </div>
-              <div className="flex gap-2 text-xs text-gray-500 items-center">
-                { comment.author && 
-                <>
-                <p>{comment.author}</p>
-                <span>•</span>
-                </>
-                }
-                <p>{comment.createdAt}</p>
-              </div>
-            </div>
-
-
-            {
-              comment.isEditable &&
-            <div>
-
-            {/* Edit Button */}
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() =>  {
-                setAdditionalTextComment(comment.comment) 
-                setCommentCategory(comment.category)
-                setCommentEditable(comment.id); 
-              }}
-              className="h-8 w-8 rounded-full"
-              disabled={isCompleted}
-            >
-
-              <Pencil className="h-4 w-4" />
-            </Button>
-            {/* Delete Icon */}
-
-
-              <AlertDialog>
-                <AlertDialogTrigger disabled={isCompleted} >
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    // onClick={() => setComments(prev => prev.filter(c => c.id !== comment.id))}
-                    className="h-8 w-8 rounded-full"
-                    disabled={isCompleted}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete this comment?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>
-                    Cancel
-                  </AlertDialogCancel>
-                  <AlertDialogAction onClick={() => setComments(prev => prev.filter(c => c.id !== comment.id))}>
-                    Yes
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-
-
-        
-            </div>
-            }
-
-          </div>
-
-          {/* Comment Text */}
-          <p className="text-gray-800 leading-relaxed">{comment.comment}</p>
-        </div>
-      )}
-    </div>
-  ))}
-
-</div>
-
-                 
-
-                    {/* {isEditingAdditionalText ? (
-                      <div className="space-y-3">
-                        <Textarea
-                          value={additionalTextComment}
-                          onChange={(e) => setAdditionalTextComment(e.target.value)}
-                          className="min-h-[120px] resize-none"
-                          placeholder="Add comments here..."
-                          autoFocus
-                        />
-                        <div className="flex justify-end space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleCancelAdditionalText}
-                          >
-                            Cancel
-                          </Button>
-                          <Button size="sm" onClick={handleSaveAdditionalText}>
-                            Save
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="group relative">
-                        <p className="text-sm text-gray-500 leading-relaxed italic">
-                          {additionalTextComment ||
-                            "Add comments here..."}
-                        </p>
-                      </div>
-                    )} */}
-
-
-                </div>
               </div>
             </div>
           </div>
@@ -2312,53 +2069,6 @@ const acceptChangesMutation = useMutation({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Additional Text Comment Modal */}
-      <Dialog
-        open={showAdditionalTextCommentModal}
-        onOpenChange={() => {
-          // Prevent closing unless explicitly cancelled or saved
-          return;
-        }}
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Add Comment</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label
-                htmlFor="additional-text-comment"
-                className="text-sm font-medium"
-              >
-                Comment
-              </label>
-              <Textarea
-                id="additional-text-comment"
-                value={additionalTextComment}
-                onChange={(e) => setAdditionalTextComment(e.target.value)}
-                placeholder="Enter your comment here..."
-                className="min-h-[100px]"
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="flex justify-end space-x-2">
-            <Button
-              variant="outline"
-              onClick={handleCancelAdditionalTextComment}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveAdditionalTextComment}
-              // disabled={!additionalTextComment?.trim()}
-            >
-              Save
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Compare Versions Modal */}
       <Dialog open={showCompareModal} onOpenChange={setShowCompareModal}>

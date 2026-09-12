@@ -647,6 +647,7 @@ BEGIN
                 c.comment                                     AS Comment,
                 c.category                                    AS Category,
                 c.author                                      AS Author,
+                c.section_key                                 AS SectionKey,
                 FORMAT(c.created_at, 'MM-dd-yyyy HH:mm')      AS CreatedAt,
                 c.is_critical                                 AS IsCritical
             FROM dbo.comments c WITH (NOLOCK)

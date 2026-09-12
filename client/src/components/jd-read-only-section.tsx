@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -7,17 +8,22 @@ import { Button } from "@/components/ui/button";
  *
  * Elements that reviewers cannot edit directly but may request changes to get
  * an `onAddComment` action, which opens the comment box for that element.
+ *
+ * `children` is the element's comment thread, rendered under its bullets so the
+ * comments and the content they are about stay together.
  */
 export function JdReadOnlySection({
   label,
   items,
   onAddComment,
   disabled,
+  children,
 }: {
   label: string;
   items?: string[];
   onAddComment?: () => void;
   disabled?: boolean;
+  children?: ReactNode;
 }) {
   return (
     <div className="mb-6">
@@ -46,6 +52,7 @@ export function JdReadOnlySection({
       ) : (
         <p className="text-sm text-gray-400 italic">Not specified</p>
       )}
+      {children}
     </div>
   );
 }
