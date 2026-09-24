@@ -51,7 +51,8 @@ import {
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { fetchWithCredentials } from "@/lib/utils";
-import { JD_LABELS } from "@shared/job-description-fields";
+import { JD_LABELS, JD_SECTIONS } from "@shared/job-description-fields";
+import { JdReadOnlySection } from "@/components/jd-read-only-section";
 import { ResetStatusButton } from "@/components/reset-status-dialog";
 
 export default function JobFinalReview() {
@@ -276,6 +277,14 @@ export default function JobFinalReview() {
                     ))}
                   </div>
                 </div>
+
+                {JD_SECTIONS.map((section) => (
+                  <JdReadOnlySection
+                    key={section.key}
+                    label={section.label}
+                    items={jobFinalReview?.jobDescriptionSections?.[section.key]}
+                  />
+                ))}
               </div>
             </div>
           </div>

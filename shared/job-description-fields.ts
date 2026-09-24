@@ -102,6 +102,39 @@ export function isEditableSectionKey(
 }
 
 /**
+ * Groups `jd_section_changes` rows into reviewer edits per element. A key is
+ * present once that element has been saved, even when it was saved empty (a
+ * single row with sort_order < 0), so deleted items do not reappear.
+ */
+export function groupSectionChanges(
+  rows: Array<{ section_key: string; item_text: string; sort_order: number }>
+): JobDescriptionSectionChanges {
+  const changes: JobDescriptionSectionChanges = {};
+  for (const row of rows) {
+    if (!isEditableSectionKey(row.section_key)) continue;
+    const items = (changes[row.section_key] ??= []);
+    if (row.sort_order >= 0) items.push(row.item_text);
+  }
+  return changes;
+}
+
+/**
+ * The signed-off elements: the reviewer's edits where an element was saved,
+ * otherwise the updated text. `??`, not `||`, so an element the reviewer
+ * deliberately emptied stays empty.
+ */
+export function effectiveJobDescriptionSections(
+  updated: JobDescriptionSections,
+  changes: JobDescriptionSectionChanges
+): JobDescriptionSections {
+  const sections = emptyJobDescriptionSections();
+  for (const { key } of JD_SECTIONS) {
+    sections[key] = changes[key] ?? updated[key];
+  }
+  return sections;
+}
+
+/**
  * Elements a Functional Leader cannot edit directly: change requests for these
  * go through the comment box shown underneath the element.
  */
