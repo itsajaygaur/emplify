@@ -1,4 +1,5 @@
 import type { JobStatus } from "./job-status";
+import type { JobDescriptionSections } from "./job-description-fields";
 
 export interface JobFinalReview {
   essentialFunctions: string[];   // List of function texts
@@ -13,4 +14,7 @@ export interface JobFinalReview {
     lastUpdated: string;          // Use Date if parsing
     jobSummary: string;
   };
+  // Education, experience, certification, environmental and physical
+  // elements, with the reviewer's edits applied to the editable ones.
+  jobDescriptionSections: JobDescriptionSections;
 }

@@ -21,6 +21,8 @@ import {
 } from "@shared/job-status";
 import {
   commentSectionKey,
+  effectiveJobDescriptionSections,
+  groupSectionChanges,
   isEditableSectionKey,
   jdSectionLabel,
   parseJobDescriptionSections,
@@ -380,10 +382,39 @@ export async function registerRoutes(app: Express): Promise<any> {
             jobSummary: jobRow.JobSummary,
           };
 
+          // The remaining JD elements, read here rather than in
+          // sp_GetJobFinalReview so no procedure redeploy is needed. Same
+          // precedence as the summary and duties: reviewer edits, else the
+          // updated text, else the original.
+          const jdResult = await pool
+            .request()
+            .input("job_id", sql.Int, jobRow.Id).query(`
+            SELECT
+              jd.other_job_description,
+              jd.other_job_description_ai,
+              (
+                SELECT jsc.section_key, jsc.item_text, jsc.sort_order
+                FROM jd_section_changes jsc WITH (NOLOCK)
+                WHERE jsc.job_id = @job_id
+                ORDER BY jsc.section_key, jsc.sort_order
+                FOR JSON PATH
+              ) AS jd_section_changes
+            FROM job_descriptions jd WITH (NOLOCK)
+            WHERE jd.job_id = @job_id
+          `);
+          const jdRow = jdResult.recordset[0];
+          const jobDescriptionSections = effectiveJobDescriptionSections(
+            parseJobDescriptionSections(
+              jdRow?.other_job_description_ai || jdRow?.other_job_description
+            ),
+            groupSectionChanges(JSON.parse(jdRow?.jd_section_changes || "[]"))
+          );
+
           const finalReview: JobFinalReview = {
             essentialFunctions,
             reviewers,
             jobDetails,
+            jobDescriptionSections,
           };
 
           res.json(finalReview);
@@ -752,19 +783,9 @@ export async function registerRoutes(app: Express): Promise<any> {
         // Reviewer edits to the editable elements, grouped by element. A key
         // is present once that element has been saved, even when it was saved
         // empty, so deleted items do not reappear on the next load.
-        const sectionChangeRows: Array<{
-          section_key: string;
-          item_text: string;
-          sort_order: number;
-        }> = JSON.parse(job?.jd_section_changes || "[]");
-        const sectionChanges: Record<string, string[]> = {};
-        for (const row of sectionChangeRows) {
-          if (!isEditableSectionKey(row.section_key)) continue;
-          const items = (sectionChanges[row.section_key] ??= []);
-          // sort_order < 0 marks a deliberately emptied element.
-          if (row.sort_order >= 0) items.push(row.item_text);
-        }
-        job.job_description_section_changes = sectionChanges;
+        job.job_description_section_changes = groupSectionChanges(
+          JSON.parse(job?.jd_section_changes || "[]")
+        );
         delete job.jd_section_changes;
         res.json(convertKeysToCamelCase(job));
       } catch (error) {
